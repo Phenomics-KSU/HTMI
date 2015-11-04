@@ -132,7 +132,7 @@ def analyze_set(image_set, time_offset):
         
         for item in image.items:
             item.other_items = [] # make sure no old references so we don't duplicate them when merging items below.
-            item.position = calculate_position(item, image)
+            item.position = calculate_item_position(item, image)
             set_items.append(item)
     
     # Make a copy of all codes before merging so we don't end up with duplicates (merged references and original ones).

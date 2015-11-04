@@ -24,6 +24,24 @@ def postfix_filename(filename, postfix):
     postfixed_name = "{0}{1}{2}".format(filename, postfix, extension)
     return postfixed_name
 
+def make_filename_unique(directory, fname_no_ext):
+    
+    original_fname = fname_no_ext
+    dir_contents = os.listdir(directory)
+    dir_fnames = [os.path.splitext(c)[0] for c in dir_contents]
+    
+    while fname_no_ext in dir_fnames:
+        
+        try:
+            v = fname_no_ext.split('_')
+            i = int(v[-1])
+            i += 1
+            fname_no_ext = '_'.join(v[:-1] + [str(i)])
+        except ValueError:
+            fname_no_ext = '{}_{}'.format(original_fname, 1)
+
+    return fname_no_ext
+
 def verify_geo_images(geo_images, image_filenames):
     '''Verify each geo image exists in specified image file names. Return # missing images.'''
     missing_image_count = 0

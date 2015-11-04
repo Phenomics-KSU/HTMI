@@ -10,55 +10,62 @@ import numpy as np
 # Project imports
 from src.util.image_writer import ImageWriter
 from src.util.image_utils import *
-from src.processing.item_processing import touches_image_border
 
-class ItemExtractor:
-    '''Extracts field items from image.'''    
-    def __init__(self, locators):
-        '''Constructor'''
+def locate_items(locators, geo_image, image, marked_image):
+    '''Locate and return list of items found using 'locators' in image.'''
+    if marked_image is not None:
+        # Show what 1" is on the top-left of the image.
+        pixels = int(2.54 / geo_image.resolution)
+        cv2.rectangle(marked_image, (1,1), (pixels, pixels), (255,255,255), 2) 
     
-    def extract_items(self, field_items, geo_image, image, marked_image, out_directory):
-        '''Extract items into separate images. Return updated list of field items..'''
-        
-        '''
-        if marked_image is not None:
-            # Show what 1" is on the top-left of the image.
-            pixels = int(2.54 / geo_image.resolution)
-            cv2.rectangle(marked_image, (1,1), (pixels, pixels), (255,255,255), 2) 
-        
-        
-        field_items = []
-        for locator in self.locators:
-            located_items = locator.locate(geo_image, image, marked_image)
-            field_items.extend(located_items)
-        '''
-        # Filter out any items that touch the image border since it likely doesn't represent entire item.
-        items_without_border_elements = []
-        for item in field_items:
-            if touches_image_border(item, geo_image):
-                # Mark as special color to show user why it wasn't included.
-                if marked_image is not None:
-                    dark_orange = (0, 140, 255) # dark orange
-                    draw_rect(marked_image, item.bounding_rect, dark_orange, thickness=2)
-            else:
-                items_without_border_elements.append(item)
-        field_items = items_without_border_elements
+    field_items = []
+    for locator in locators:
+        located_items = locator.locate(geo_image, image, marked_image)
+        field_items.extend(located_items)
 
-        # Extract field items into separate image
-        for item in field_items:
-            
-            extracted_image = extract_square_image(image, item.bounding_rect, 20)
-            
-            extracted_image_fname = "{}_{}_{}.jpg".format(geo_image.file_name, item.type, item.name)
-            extracted_image_path = ImageWriter.save_normal(extracted_image_fname, extracted_image)
-            
-            item.image_path = extracted_image_path
-            
-            item.parent_image_filename = geo_image.file_name
-            
-            item.position = calculate_position(item, geo_image)
+    return field_items
+    
+def extract_items(field_items, geo_image, image, marked_image):
+    '''Extract items into separate images. Return updated list of field items.'''
+
+    # Filter out any items that touch the image border since it likely doesn't represent entire item.
+    items_without_border_elements = []
+    for item in field_items:
+        if touches_image_border(item, geo_image):
+            # Mark as special color to show user why it wasn't included.
+            if marked_image is not None:
+                dark_orange = (0, 140, 255) # dark orange
+                draw_rect(marked_image, item.bounding_rect, dark_orange, thickness=2)
+        else:
+            items_without_border_elements.append(item)
+    field_items = items_without_border_elements
+
+    # Extract field items into separate image
+    for item in field_items:
         
-        return field_items
+        extracted_image = extract_square_image(image, item.bounding_rect, 20)
+        
+        extracted_image_fname = "{}_{}_{}.jpg".format(geo_image.file_name, item.type, item.name)
+        extracted_image_path = ImageWriter.save_normal(extracted_image_fname, extracted_image)
+        
+        item.image_path = extracted_image_path
+        
+        item.parent_image_filename = geo_image.file_name
+        
+        item.position = calculate_item_position(item, geo_image)
+    
+    return field_items
+
+def touches_image_border(item, geo_image, rotated_bounding_box=True):
+    '''Return true if item bounding box touches image border.'''
+    rect = item.bounding_rect
+    if rotated_bounding_box:
+        rect = rotated_to_regular_rect(item.bounding_rect)
+    x1, y1, x2, y2 = rectangle_corners(rect, rotated=False)
+    img_w, img_h = geo_image.size
+    # Need to use (1 and -1) since bounding box has 1 pix border.
+    touches_border = x1 <= 1 or y1 <= 1 or x2 >= (img_w-1) or y2 >= (img_h-1)
+    return touches_border
 
 def filter_by_size(bounding_rects, resolution, min_size, max_size, enforce_min_on_w_and_h=True):
     '''Return list of rectangles that are within min/max size (specified in centimeters)'''
@@ -122,10 +129,9 @@ def extract_rotated_image(image, rotated_rect, pad, trim=0):
     
     return extract_square_image(masked_image, trimmed_rect, pad, rotated=True)
     
-def calculate_position(item, geo_image):
-    '''Return (x,y,z) position of item within geo image.'''
+def calculate_pixel_position(x, y, geo_image):
+    '''Return (x,y,z) position of pixel within geo image.'''
     resolution = geo_image.resolution
-    x, y = rectangle_center(item.bounding_rect)
     # Reference x y from center of image instead of top left corner.
     x = x - geo_image.size[0]/2
     y = -y + geo_image.size[1]/2
@@ -138,7 +144,12 @@ def calculate_position(item, geo_image):
     east_offset *= resolution / 100
     north_offset *= resolution / 100
     # Take into account camera height.  Negative since item is below camera.
-    z_meters = -geo_image.camera_height / 100
+    z_meters = 0 # -geo_image.camera_height / 100
     
     return (geo_image.position[0] + east_offset, geo_image.position[1] + north_offset, geo_image.position[2] + z_meters)
+
+def calculate_item_position(item, geo_image):
+    '''Return (x,y,z) position of item within geo image.'''
+    x, y = rectangle_center(item.bounding_rect)
+    return calculate_pixel_position(x, y, geo_image)
     

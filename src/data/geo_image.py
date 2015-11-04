@@ -2,7 +2,7 @@
 
 class GeoImage(object):
     '''Image properties with X,Y,Z position and heading. All distances in centimeters.'''
-    def __init__(self, file_name, image_time=0, position=(0,0,0), zone, heading_degrees=0, 
+    def __init__(self, file_name, image_time=0, position=(0,0,0), zone='N/A', heading_degrees=0, 
                  resolution=0, camera_rotation_degrees=0, size=(0,0)):
         '''Constructor.'''
         self.file_name = file_name # name of image file with extension (not full path).

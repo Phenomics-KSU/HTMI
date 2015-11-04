@@ -7,22 +7,22 @@ from math import sqrt
 import cv2
 
 # Project imports
+from src.extraction.item_extraction import *
 from src.util.image_writer import ImageWriter
 from src.util.image_utils import *
 
-def process_geo_image(geo_image, item_extractor, camera_rotation, image_directory, out_directory, use_marked_image):
+def process_geo_image(geo_image, locators, camera_rotation, image_directory, out_directory, use_marked_image):
     '''Return list of extracted items sorted in direction of movement.'''
     full_filename = os.path.join(image_directory, geo_image.file_name)
     
     image = cv2.imread(full_filename, cv2.CV_LOAD_IMAGE_COLOR)
     
     if image is None:
-        print 'Cannot open image: {0}'.format(full_filename)
+        print 'Cannot open image: {}'.format(full_filename)
         return []
     
     # Update remaining geo image properties before doing image analysis.  This makes it so we only open image once.
-    image_height, image_width, _ = image.shape
-    geo_image.size = (image_width, image_height)
+    geo_image.height, geo_image.width, _ = image.shape
     
     if geo_image.resolution <= 0:
         print "Cannot calculate image resolution. Skipping image."
@@ -37,8 +37,10 @@ def process_geo_image(geo_image, item_extractor, camera_rotation, image_director
         # Copy original image so we can mark on it for debugging.
         marked_image = image.copy()
     
-    image_items = item_extractor.extract_items(geo_image, image, marked_image, image_out_directory)
+    calculate_geo_image_corners(geo_image)
     
+    image_items = locate_items(locators, geo_image, image, marked_image)
+    image_items = extract_items(image_items, geo_image, image, marked_image)
     image_items = order_items(image_items, camera_rotation)
 
     if marked_image is not None:
@@ -86,6 +88,12 @@ def merge_items(items, max_distance):
             
     return unique_items
 
+def calculate_geo_image_corners(geo_image):
+    '''Update corner positions of geo_image.'''
+    geo_image.top_left_position = calculate_pixel_position(0, 0, geo_image)
+    geo_image.top_right_position = calculate_pixel_position(geo_image.width, 0, geo_image)
+    geo_image.bottom_right_position = calculate_pixel_position(geo_image.width, geo_image.height, geo_image)
+    geo_image.bottom_left_position = calculate_pixel_position(0, geo_image.height, geo_image)
 
 def cluster_merged_items(items, parent_images, cluster_size):
     
@@ -176,17 +184,6 @@ def cluster_merged_items(items, parent_images, cluster_size):
         clustered_merged_items.append(main_item)
 
     return clustered_merged_items
-
-def touches_image_border(item, geo_image, rotated_bounding_box=True):
-    '''Return true if item bounding box touches image border.'''
-    rect = item.bounding_rect
-    if rotated_bounding_box:
-        rect = rotated_to_regular_rect(item.bounding_rect)
-    x1, y1, x2, y2 = rectangle_corners(rect, rotated=False)
-    img_w, img_h = geo_image.size
-    # Need to use (1 and -1) since bounding box has 1 pix border.
-    touches_border = x1 <= 1 or y1 <= 1 or x2 >= (img_w-1) or y2 >= (img_h-1)
-    return touches_border
         
 def position_difference(position1, position2):
     '''Return difference in XY positions between both items.'''

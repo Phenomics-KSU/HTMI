@@ -339,7 +339,7 @@ if __name__ == '__main__':
         with open(geo_filepath, 'wb') as geo_file:
             csv_writer = csv.writer(geo_file)
             for reading in geo_readings:
-                formatted_time = '{:.4f},'.format(reading.time)
+                formatted_time = '{:.4f}'.format(reading.time)
                 out_line = [formatted_time] + list(reading.data) + list(reading.position) + [position_zone] + list(reading.orientation)
                 csv_writer.writerow(out_line)
         

@@ -53,7 +53,7 @@ class CodeFinder:
         # Scan each rectangle with QR reader to remove false positives and also extract data from code.
         qr_items = []
         for rectangle in filtered_rectangles:
-            qr_data = self.scan_image_different_trims_and_threshs(image, rectangle, trims=[0, 3, 8, 12, 16])
+            qr_data = self.scan_image_different_trims_and_threshs(image, rectangle, trims=[0, 3, 8, 12])
             scan_successful = len(qr_data) != 0
 
             if scan_successful:
@@ -144,17 +144,23 @@ class CodeFinder:
     def create_qr_code(self, qr_data, bounding_rect):
         '''Return either SingleCode, GroupCode or RowCode depending on data.  Return None if not valid data.'''
         
+        # change misprinted code
+        # TODO remove this
+        if qr_data == 'K000736': 
+            qr_data = '736'
+        
         if qr_data[0].lower() == 'k':
             qr_item = SingleCode(name = qr_data)
-        elif qr_data[:2].lower() in ['st', 'en']: 
+        elif qr_data[-3:-1].lower() in ['st', 'en']: 
             qr_item = RowCode(name = qr_data)
-            qr_item.row = int(qr_data[3:])
+            qr_item.row = int(qr_data[:3])
         elif qr_data.isdigit():
             qr_item = GroupCode(name = qr_data) 
         else:
             qr_item = None
             
         # Fill in any common fields here.
-        qr_item.bounding_rect = bounding_rect
+        if qr_item is not None:
+            qr_item.bounding_rect = bounding_rect
             
         return qr_item

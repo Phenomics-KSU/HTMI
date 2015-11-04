@@ -23,15 +23,15 @@ def parse_geo_file(image_geo_file, provided_resolution, camera_rotation):
                 x = float(fields[2])
                 y = float(fields[3])
                 z = float(fields[4])
-                zone = float(fields[5])
+                zone = fields[5]
                 roll = float(fields[6])
                 pitch = float(fields[7])
                 heading = math.degrees(float(fields[8]))
                 # Make sure filename doesn't have extension, we'll add it from image that we're processing.
                 image_name = os.path.splitext(image_name)[0]
             except (IndexError, ValueError) as e:
-                print 'Bad line: {}  Exception {}'.format(line, e) 
-                continue
+                print 'Bad line: {}'.format(line) 
+                raise
 
             geo_image = GeoImage(image_name, image_time, (x, y, z), zone, heading, provided_resolution, camera_rotation)
             images.append(geo_image)
