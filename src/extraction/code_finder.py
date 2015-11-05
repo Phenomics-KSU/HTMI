@@ -102,6 +102,10 @@ class CodeFinder:
                 image_to_scan = cv2.cvtColor(cv_thresh_image, cv2.COLOR_GRAY2BGR)
             elif scan_try == 2:
                 cv_gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+                cv_thresh_image = cv2.adaptiveThreshold(cv_gray_image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 39, 2)
+                image_to_scan = cv2.cvtColor(cv_thresh_image, cv2.COLOR_GRAY2BGR)
+            elif scan_try == 3:
+                cv_gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
                 _, cv_thresh_image = cv2.threshold(cv_gray_image, 150, 255, 0)
                 image_to_scan = cv2.cvtColor(cv_thresh_image, cv2.COLOR_GRAY2BGR)
             else:
