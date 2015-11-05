@@ -9,9 +9,9 @@ class Row(object):
         self.start_code = start_code # code on the side of the field where range = 0
         self.end_code = end_code # code on the other side of the field.
         self.direction = direction # Either 'up' if the in same direction as field or 'back' if row runs opposite direction.
-        self.group_segments = segments # Segments in row in order of direction (up or back)
-        if self.group_segments is None:
-            self.group_segments = []
+        self.segments = segments # Segments in row in order of direction (up or back)
+        if self.segments is None:
+            self.segments = []
     
     @property
     def number(self):
@@ -25,6 +25,16 @@ class Row(object):
         dy = self.end_code.position[1] - self.start_code.position[1]
         return atan2(dy, dx)
     
+    @property
+    def group_segments(self):
+        '''Return list of segments in row that have plants between codes.'''
+        return [s for s in self.segments if not s.is_special()]
+
+    @property
+    def special_segments(self):
+        '''Return list of segments in row that just have a single plant right next to start code.'''
+        return [s for s in self.segments if s.is_special()]
+    
 class PlantGroupSegment(object):
     '''Part of a plant grouping. Hit end of row before entire grouping could be planted.'''
     def __init__(self, start_code, end_code, items=None):
@@ -33,8 +43,8 @@ class PlantGroupSegment(object):
         if self.items is None:
             self.items = []
         self.group = None # group that segment belongs to.
-        self.start_code = start_code # QR code to start segment. Could either be Row or Group Code depending on if segment is starting or ending.
-        self.end_code = end_code # QR code that ends segment. Could either be Row or Group Code depending on if segment is starting or ending.
+        self.start_code = start_code # QR code to start segment. Could either be Row, Group or Single Code depending on if segment is starting or ending.
+        self.end_code = end_code # QR code that ends segment. Could either be Row, Group or Single Code depending on if segment is starting or ending.
         self.expected_num_plants = -1 # how many plants should be in segment. negative if not sure.
         self.num_plants_was_measured = False # set to true if expected num plants was directly measured in field.
 
@@ -71,6 +81,11 @@ class PlantGroupSegment(object):
         delta_x = self.start_code.position[0] - self.end_code.position[0]
         delta_y = self.start_code.position[1] - self.end_code.position[1]
         return sqrt(delta_x*delta_x + delta_y*delta_y)
+    
+    @property
+    def is_special(self):
+        '''Return true if start of segment corresponds to SingleCode.'''
+        return self.start_code.type.lower() == 'singlecode'
         
 class PlantGroup(object):
     '''Complete plant grouping made of 1 or more segments that span multiple rows.'''

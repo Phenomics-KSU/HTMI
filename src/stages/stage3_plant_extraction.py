@@ -39,7 +39,7 @@ if __name__ == '__main__':
     
     for row in rows:
 
-        for segment in row.group_segments:
+        for segment in row.segments:
             
             # Get East-North unit vector of segment.
             e = segment.end_code.position[0] - segment.start_code.position[0]

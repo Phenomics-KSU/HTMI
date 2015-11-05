@@ -5,12 +5,13 @@ import numpy as np
 
 class FieldItem(object):
     '''Item found within image'''
-    def __init__(self, name, position=(0,0,0), field_position=(0,0,0), size=(0,0), area=0, row=0, range_grid=0,
+    def __init__(self, name, position=(0,0,0), field_position=(0,0,0), zone='N/A', size=(0,0), area=0, row=0, range_grid=0,
                   image_path='', parent_image_filename='', bounding_rect=None, number_within_field=0, number_within_row=0):
         '''Constructor.'''
         self.name = name # identifier 
         self._position = position # 3D position of item in either local ENU frame or UTM
         self._field_position = field_position # 3D position relative to first field item. axes are in direction of row, range, altitude.
+        self.zone = zone # UTM zone (e.g. 14S). Should be '--' if not being used.
         self._row = row # The row the item is found in. First row is #1.  If zero or negative then doesn't belong to a row.
         self._range = range_grid # The range the item is found in.  If row is the 'x' value then the range is the 'y' value and the units are dimensionless.
         self._number_within_field = number_within_field # Number of item within entire field.  
@@ -25,6 +26,10 @@ class FieldItem(object):
     @property
     def other_items(self):
         return self._other_items
+    
+    @property
+    def all_refs(self):
+        return [self] + self._other_items
         
     @other_items.setter
     def add_other_item(self, other_item):
@@ -89,10 +94,6 @@ class FieldItem(object):
         self._number_within_row = new_value
         for item in self.other_items:
             item.number_within_row = new_value
-        
-    @property
-    def all_refs(self):
-        return [self] + self._other_items
 
     @property
     def type(self):
@@ -175,4 +176,9 @@ class RowCode(FieldItem):
     def __init__(self, *args, **kwargs):
         '''Constructor.'''
         super(RowCode, self).__init__(*args, **kwargs)
+        
+        self.assigned_row = -1 # overrides row number assign from code name
 
+    @FieldItem.row.getter
+    def row(self):
+        return self.assigned_row if self.assigned_row >= 0 else self._row

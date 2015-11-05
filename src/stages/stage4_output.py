@@ -42,10 +42,10 @@ if __name__ == '__main__':
     ordered_items = []
     for row in rows:
         row_items = []
-        for i, segment in enumerate(row.group_segments):
+        for i, segment in enumerate(row.segments):
             row_items.append(segment.start_code)
             row_items += segment.items
-            if i == len(row.group_segments) - 1:
+            if i == len(row.segments) - 1:
                 row_items.append(segment.end_code) # since on last segment it won't show up in next segment
                 
         # Get everything going in the 'up' direction

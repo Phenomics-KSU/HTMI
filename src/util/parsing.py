@@ -108,3 +108,19 @@ def parse_updated_fix_file(updated_items_filepath):
                 continue
             
     return all_items, missing_items, none_items
+
+def parse_updated_items(updated_items_filepath):
+    
+    updated_all_items = []
+    updated_missing_items = []
+    updated_none_items = []
+    
+    if updated_items_filepath != 'none':
+        if os.path.exists(updated_items_filepath):
+            updated_all_items, updated_missing_items, updated_none_items = parse_updated_fix_file(updated_items_filepath)
+            print "From updated fix file parsed: "
+            print "All {} missing {} none {}".format(len(updated_all_items), len(updated_missing_items), len(updated_none_items))
+        else:
+            print "Updated file file {} does not exist.".format(updated_items_filepath)
+        
+    return updated_all_items, updated_missing_items, updated_none_items

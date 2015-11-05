@@ -45,7 +45,7 @@ def extract_items(field_items, geo_image, image, marked_image):
         
         extracted_image = extract_square_image(image, item.bounding_rect, 20)
         
-        extracted_image_fname = "{}_{}_{}.jpg".format(geo_image.file_name, item.type, item.name)
+        extracted_image_fname = postfix_filename(geo_image.file_name, "_{}_{}".format(item.type, item.name))
         extracted_image_path = ImageWriter.save_normal(extracted_image_fname, extracted_image)
         
         item.image_path = extracted_image_path
@@ -53,6 +53,7 @@ def extract_items(field_items, geo_image, image, marked_image):
         item.parent_image_filename = geo_image.file_name
         
         item.position = calculate_item_position(item, geo_image)
+        item.zone = geo_image.zone
     
     return field_items
 

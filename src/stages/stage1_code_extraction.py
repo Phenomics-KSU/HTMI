@@ -9,6 +9,7 @@ import datetime
 
 # Project imports
 from src.util.image_utils import list_images, index_containing_substring, verify_geo_images, make_filename_unique
+from src.util.stage_io import pickle_results, write_args_to_file
 from src.util.image_writer import ImageWriter
 from src.util.parsing import parse_geo_file
 from src.extraction.code_finder import CodeFinder
@@ -93,6 +94,10 @@ def stage1_code_extraction(**args):
     if missing_image_count > 0:
         print "Warning {} geo images do not exist and will be skipped.".format(missing_image_count)
 
+    if len(geo_images) == 0:
+        print "No images match up with any geo images. Exiting."
+        return ExitReason.no_geo_images
+
     code_finder = CodeFinder(code_min_size, code_max_size)
     
     ImageWriter.level = ImageWriter.DEBUG
@@ -102,7 +107,7 @@ def stage1_code_extraction(**args):
     if not os.path.exists(image_out_directory):
         os.makedirs(image_out_directory)
 
-    # Find and extract all code items from images.
+    # Find and extract all codes from images.
     codes = []
     try:
         for i, geo_image in enumerate(geo_images):
@@ -117,14 +122,10 @@ def stage1_code_extraction(**args):
         if answer.lower() != 'y':
             return ExitReason.user_interrupt
   
-    dump_filename = "stage1_output_{}_{}.txt".format(int(geo_images[0].image_time), int(geo_image.image_time))
-    dump_filename = make_filename_unique(out_directory, dump_filename)
-    dump_filepath = os.path.join(out_directory, dump_filename)
-    print "Serializing {} geo images and {} codes to {}.".format(len(geo_images), len(codes), dump_filepath)
-    with open(dump_filepath, 'wb') as dump_file:
-        pickle.dump(geo_images, dump_file, protocol=2)
-        pickle.dump(codes, dump_file, protocol=2)
-
+    dump_filename = "stage1_output_{}_{}.s1".format(int(geo_images[0].image_time), int(geo_image.image_time))
+    print "Serializing {} geo images and {} codes to {}.".format(len(geo_images), len(codes), dump_filename)
+    pickle_results(dump_filename, out_directory, geo_images, codes)
+    
     # Display code stats for user.
     merged_codes = merge_items(codes, max_distance=500)
     if len(merged_codes) == 0:
@@ -135,11 +136,7 @@ def stage1_code_extraction(**args):
 
     # Write arguments out to file for archiving purposes.
     args_filename = "stage1_args_{}_{}.csv".format(int(geo_images[0].image_time), int(geo_image.image_time))
-    args_filepath = os.path.join(out_directory, args_filename)
-    with open(args_filepath, 'wb') as args_file:
-        csv_writer = csv.writer(args_file)
-        csv_writer.writerow(['Date', str(datetime.datetime.now())])
-        csv_writer.writerows([[k, v] for k, v in args_copy.items()])
+    write_args_to_file(args_filename, out_directory, args_copy)
         
     return ExitReason.success
 
