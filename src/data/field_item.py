@@ -2,7 +2,6 @@
 
 import numpy as np
 
-
 class FieldItem(object):
     '''Item found within image'''
     def __init__(self, name, position=(0,0,0), field_position=(0,0,0), zone='N/A', size=(0,0), area=0, row=0, range_grid=0,

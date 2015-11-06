@@ -42,6 +42,7 @@ class PlantGroupSegment(object):
         self.items = items # items found in segment not counting start or end QR code.
         if self.items is None:
             self.items = []
+        self.geo_images = [] # list of geo images that are in (or close enough to) segment.
         self.group = None # group that segment belongs to.
         self.start_code = start_code # QR code to start segment. Could either be Row, Group or Single Code depending on if segment is starting or ending.
         self.end_code = end_code # QR code that ends segment. Could either be Row, Group or Single Code depending on if segment is starting or ending.

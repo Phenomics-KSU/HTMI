@@ -40,3 +40,9 @@ def unpickle_stage1_output(input_directory):
             geo_images += file_geo_images
             codes += file_codes
     return geo_images, codes
+
+def unpickle_stage2_output(input_filepath):
+    with open(input_filepath, 'rb') as stage2_file:
+        rows = pickle.load(stage2_file)
+        geo_images = pickle.load(stage2_file)
+    return rows, geo_images

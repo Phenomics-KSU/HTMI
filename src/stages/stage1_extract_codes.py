@@ -16,7 +16,7 @@ from src.extraction.code_finder import CodeFinder
 from src.processing.item_processing import process_geo_image, merge_items
 from exit_reason import ExitReason
     
-def stage1_code_extraction(**args):
+def stage1_extract_codes(**args):
     ''' 
     Extract codes from set of images and write out results to file.
     args should match the names and descriptions of command line parameters,
@@ -157,7 +157,7 @@ if __name__ == '__main__':
     
     args = vars(parser.parse_args())
     
-    exit_code = stage1_code_extraction(**args)
+    exit_code = stage1_extract_codes(**args)
     
     if exit_code == ExitReason.bad_arguments:
         print "\nSee --help for argument descriptions."

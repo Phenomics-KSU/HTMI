@@ -9,7 +9,7 @@ from src.util.stage_io import unpickle_stage1_output, pickle_results, write_args
 from src.processing.item_processing import merge_items
 from src.stages.exit_reason import ExitReason
 
-def stage2_grouping(**args):
+def stage2_group_codes(**args):
     ''' 
     Group codes into rows.
     args should match the names and descriptions of command line parameters,
@@ -105,9 +105,9 @@ def stage2_grouping(**args):
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
  
-    dump_filename = "stage2_rows_{}_{}.s2".format(int(geo_images[0].image_time), int(geo_images[-1].image_time))
-    print "Serializing {} rows to {}.".format(len(rows), dump_filename)
-    pickle_results(dump_filename, output_directory, rows)
+    dump_filename = "stage2_output_{}_{}.s2".format(int(geo_images[0].image_time), int(geo_images[-1].image_time))
+    print "Serializing {} rows and {} geo images to {}.".format(len(rows), len(geo_images), dump_filename)
+    pickle_results(dump_filename, output_directory, rows, geo_images)
     
     # Write arguments out to file for archiving purposes.
     args_filename = "stage2_args_{}_{}.csv".format(int(geo_images[0].image_time), int(geo_images[-1].image_time))
@@ -124,7 +124,7 @@ if __name__ == '__main__':
     
     args = vars(parser.parse_args())
     
-    exit_code = stage2_grouping(**args)
+    exit_code = stage2_group_codes(**args)
     
     if exit_code == ExitReason.bad_arguments:
         print "\nSee --help for argument descriptions."

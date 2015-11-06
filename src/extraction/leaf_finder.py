@@ -10,7 +10,7 @@ from src.util.image_utils import postfix_filename, draw_rect, cluster_rectangles
 from src.extraction.item_extraction import filter_by_size
 from src.data.field_item import Plant
 
-class PlantLocator:
+class LeafFinder:
     '''Locates plants within an image.'''
     def __init__(self, min_plant_size, max_plant_size):
         '''Constructor.  Plant size is an estimate for searching.'''

@@ -11,17 +11,18 @@ from src.extraction.item_extraction import *
 from src.util.image_writer import ImageWriter
 from src.util.image_utils import *
 
-def process_geo_image(geo_image, locators, camera_rotation, image_directory, out_directory, use_marked_image):
-    '''Return list of extracted items sorted in direction of movement.'''
-    full_filename = os.path.join(image_directory, geo_image.file_name)
+def process_geo_image(geo_image, locators, image_directory, out_directory, use_marked_image):
+    '''Return list of extracted items'''
+    image_filepath = os.path.join(image_directory, geo_image.file_name)
+    geo_image.file_path = image_filepath
     
-    image = cv2.imread(full_filename, cv2.CV_LOAD_IMAGE_COLOR)
+    image = cv2.imread(image_filepath, cv2.CV_LOAD_IMAGE_COLOR)
     
     if image is None:
-        print 'Cannot open image: {}'.format(full_filename)
+        print 'Cannot open image: {}'.format(image_filepath)
         return []
     
-    # Update remaining geo image properties before doing image analysis.  This makes it so we only open image once.
+    # Update remaining geo image properties before doing image analysis.
     geo_image.height, geo_image.width, _ = image.shape
     
     if geo_image.resolution <= 0:
@@ -41,7 +42,40 @@ def process_geo_image(geo_image, locators, camera_rotation, image_directory, out
     
     image_items = locate_items(locators, geo_image, image, marked_image)
     image_items = extract_items(image_items, geo_image, image, marked_image)
-    image_items = order_items(image_items, camera_rotation)
+    #image_items = order_items(image_items, camera_rotation)
+
+    if marked_image is not None:
+        marked_image_filename = postfix_filename(geo_image.file_name, '_marked')
+        marked_image_path = os.path.join(out_directory, marked_image_filename)
+        cv2.imwrite(marked_image_path, marked_image)
+        
+    return image_items
+
+def reprocess_geo_image(geo_image, locators, out_directory, use_marked_image):
+    '''Return list of extracted items'''
+
+    image = cv2.imread(geo_image.filepath, cv2.CV_LOAD_IMAGE_COLOR)
+    
+    if image is None:
+        print 'Cannot open image: {}'.format(geo_image.file_path)
+        return []
+    
+    if geo_image.resolution <= 0:
+        print "Cannot calculate image resolution. Skipping image."
+        return []
+    
+    # Specify 'image directory' so that if any images associated with current image are saved a directory is created.
+    image_out_directory = os.path.join(out_directory, os.path.splitext(geo_image.file_name)[0])
+    ImageWriter.output_directory = image_out_directory
+    
+    marked_image = None
+    if use_marked_image:
+        # Copy original image so we can mark on it for debugging.
+        marked_image = image.copy()
+    
+    image_items = locate_items(locators, geo_image, image, marked_image)
+    image_items = extract_items(image_items, geo_image, image, marked_image)
+    #image_items = order_items(image_items, camera_rotation)
 
     if marked_image is not None:
         marked_image_filename = postfix_filename(geo_image.file_name, '_marked')
