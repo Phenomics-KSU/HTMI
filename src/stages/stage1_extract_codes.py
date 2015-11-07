@@ -8,12 +8,12 @@ import csv
 import datetime
 
 # Project imports
-from src.util.image_utils import list_images, index_containing_substring, verify_geo_images, make_filename_unique
+from src.util.image_utils import list_images, verify_geo_images
 from src.util.stage_io import pickle_results, write_args_to_file
 from src.util.image_writer import ImageWriter
 from src.util.parsing import parse_geo_file
 from src.extraction.code_finder import CodeFinder
-from src.processing.item_processing import process_geo_image, merge_items
+from src.processing.item_processing import process_geo_image, merge_items, get_subset_of_geo_images
 from exit_reason import ExitReason
     
 def stage1_extract_codes(**args):
@@ -75,13 +75,7 @@ def stage1_extract_codes(**args):
         return ExitReason.no_geo_images
     
     # Look for start/stop filenames so user doesn't have to process all images.
-    geo_image_filenames = [g.file_name for g in geo_images]
-    start_geo_index = index_containing_substring(geo_image_filenames, debug_start)
-    if start_geo_index < 0:
-        start_geo_index = 0
-    stop_geo_index = index_containing_substring(geo_image_filenames, debug_stop)
-    if stop_geo_index < 0:
-        stop_geo_index = len(geo_images) - 1
+    start_geo_index, stop_geo_index = get_subset_of_geo_images(geo_images, debug_start, debug_stop)
         
     print "Processing geo images {} through {}".format(start_geo_index, stop_geo_index)
     geo_images = geo_images[start_geo_index : stop_geo_index+1]
@@ -112,7 +106,8 @@ def stage1_extract_codes(**args):
     try:
         for i, geo_image in enumerate(geo_images):
             print "Analyzing image {} [{}/{}]".format(geo_image.file_name, i+1, len(geo_images))
-            newly_found_codes = process_geo_image(geo_image, [code_finder], camera_rotation, image_directory, image_out_directory, use_marked_image)
+            newly_found_codes = process_geo_image(geo_image, [code_finder], image_directory, image_out_directory, use_marked_image)
+            geo_image.items["codes"] = newly_found_codes
             for code in newly_found_codes:
                 print "Found {}: {}".format(code.type, code.name)
             codes += newly_found_codes

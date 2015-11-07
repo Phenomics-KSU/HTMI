@@ -51,10 +51,10 @@ def process_geo_image(geo_image, locators, image_directory, out_directory, use_m
         
     return image_items
 
-def reprocess_geo_image(geo_image, locators, out_directory, use_marked_image):
-    '''Return list of extracted items'''
+def process_geo_image_to_find_plant_parts(geo_image, leaf_finder, stick_finder, out_directory, use_marked_image):
+    '''Return list of leaves and sticks found inside geo image.'''
 
-    image = cv2.imread(geo_image.filepath, cv2.CV_LOAD_IMAGE_COLOR)
+    image = cv2.imread(geo_image.file_path, cv2.CV_LOAD_IMAGE_COLOR)
     
     if image is None:
         print 'Cannot open image: {}'.format(geo_image.file_path)
@@ -73,16 +73,15 @@ def reprocess_geo_image(geo_image, locators, out_directory, use_marked_image):
         # Copy original image so we can mark on it for debugging.
         marked_image = image.copy()
     
-    image_items = locate_items(locators, geo_image, image, marked_image)
-    image_items = extract_items(image_items, geo_image, image, marked_image)
-    #image_items = order_items(image_items, camera_rotation)
+    leaves = leaf_finder.locate(geo_image, image, marked_image)
+    sticks = stick_finder.locate(geo_image, image, marked_image)
 
     if marked_image is not None:
         marked_image_filename = postfix_filename(geo_image.file_name, '_marked')
         marked_image_path = os.path.join(out_directory, marked_image_filename)
         cv2.imwrite(marked_image_path, marked_image)
         
-    return image_items
+    return leaves, sticks
 
 def all_items(geo_images):
     '''Return single list of all items found within geo images.'''
@@ -121,6 +120,34 @@ def merge_items(items, max_distance):
             matching_item.other_items.append(item)
             
     return unique_items
+
+def get_subset_of_geo_images(geo_images, debug_start, debug_stop):
+    '''Return start and stop indices in geo_images corresponding to the substrings in debug start/stop'''
+    geo_image_filenames = [g.file_name for g in geo_images]
+    start_geo_index = index_containing_substring(geo_image_filenames, debug_start)
+    if start_geo_index < 0:
+        start_geo_index = 0
+    stop_geo_index = index_containing_substring(geo_image_filenames, debug_stop)
+    if stop_geo_index < 0:
+        stop_geo_index = len(geo_images) - 1
+        
+    return start_geo_index, stop_geo_index
+
+def dont_overlap_with_items(items, rectangles):
+    '''Return updated rectangles list such that no rectangles are fully enclosed in any items.'''
+    unenclosed_rectangles = []
+    for rect in rectangles:
+        enclosed = False
+        rx1, ry1, rx2, ry2 = rectangle_corners(rotated_to_regular_rect(rect), False)
+        for item in items:
+            ix1, iy1, ix2, iy2 = rectangle_corners(rotated_to_regular_rect(item.bounding_rect), False) # item corners
+            if ry1 > iy1 and ry2 < iy2 and rx1 > ix1 and rx2 < ix2:
+                enclosed = True
+                break
+        if not enclosed:
+            unenclosed_rectangles.append(rect)
+
+    return unenclosed_rectangles
 
 def calculate_geo_image_corners(geo_image):
     '''Update corner positions of geo_image.'''

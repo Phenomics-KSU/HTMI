@@ -29,10 +29,6 @@ def stage2_group_codes(**args):
         return ExitReason.bad_arguments
     
     geo_images, all_codes = unpickle_stage1_output(input_directory)
-    
-    # TODO REMOVE
-    for c in all_codes:
-        c.assigned_row = -1
 
     print 'Found {} codes in {} geo images.'.format(len(all_codes), len(geo_images))
 

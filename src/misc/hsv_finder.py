@@ -22,7 +22,7 @@ def nothing(x):
     
     cv2.imshow("result", mask)
 
-image = cv2.imread(r"L:\iwg\bluestakeexample\CAM_0771708037_20151014_210004_C01_3095.JPG", cv2.CV_LOAD_IMAGE_COLOR)
+image = cv2.imread(r"L:\iwg\day2\images\CAM_0771708037_20151014_204432_C01_2217.JPG", cv2.CV_LOAD_IMAGE_COLOR)
 
 if image is None:
     print "Image is none"
@@ -34,8 +34,10 @@ if image is None:
 cv2.namedWindow('result', cv2.CV_WINDOW_AUTOSIZE)
 
 # Starting with 100's to prevent error while masking
-hlow,slow,vlow = 100,50,50
-hhigh,shigh,vhigh = 120,255,255
+#hlow,slow,vlow = 67,15,5
+#hhigh,shigh,vhigh = 142,255,255
+hlow,slow,vlow = 30,80,20
+hhigh,shigh,vhigh = 90,255,255
 
 # Creating track bar
 cv2.createTrackbar('hlow', 'result', 0,179,nothing)
@@ -44,6 +46,12 @@ cv2.createTrackbar('vlow', 'result', 0,255,nothing)
 cv2.createTrackbar('hhigh', 'result', 0,179,nothing)
 cv2.createTrackbar('shigh', 'result', 0,255,nothing)
 cv2.createTrackbar('vhigh', 'result', 0,255,nothing)
+cv2.setTrackbarPos('hlow', 'result', hlow)
+cv2.setTrackbarPos('slow', 'result', slow)
+cv2.setTrackbarPos('vlow', 'result', vlow)
+cv2.setTrackbarPos('hhigh', 'result', hhigh)
+cv2.setTrackbarPos('shigh', 'result', shigh)
+cv2.setTrackbarPos('vhigh', 'result', vhigh)
 
 #converting to HSV
 hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
