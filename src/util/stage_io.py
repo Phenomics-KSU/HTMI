@@ -5,9 +5,15 @@ import sys
 import pickle
 import csv
 import datetime
+import copy
+
+# OpenCV imports
+import cv2
 
 # Project imports
 from src.util.image_utils import make_filename_unique
+from src.util.image_utils import postfix_filename, draw_rect
+from src.util.clustering import rect_to_image
 
 def pickle_results(filename, out_directory, *args):
     
@@ -56,3 +62,49 @@ def unpickle_stage4_output(input_filepath):
     with open(input_filepath, 'rb') as stage4_file:
         rows = pickle.load(stage4_file)
     return rows
+
+def debug_draw_plants_in_images(geo_images, possible_plants, actual_plants, out_directory):
+    
+    # Write images out to subdirectory to keep separated from pickled results.
+    image_out_directory = os.path.join(out_directory, 'images/')
+    if not os.path.exists(image_out_directory):
+        os.makedirs(image_out_directory)
+        
+    print "Creating out debug images"
+        
+    debug_images = []
+    # Limit the max number of images to keep from overfilling memory.
+    debug_geo_images = copy.copy(geo_images[:20])
+    for geo_image in debug_geo_images:
+        if hasattr(geo_image, 'debug_filepath'):
+            path = geo_image.debug_filepath
+        else:
+            path = geo_image.file_path
+        debug_images.append(cv2.imread(path, cv2.CV_LOAD_IMAGE_COLOR))
+    for item in possible_plants:
+        from random import randint
+        item_color = (randint(0, 255), randint(0, 255), randint(0, 255))
+        for k, geo_image in enumerate(debug_geo_images):
+            for ext_item in [item] + item.get('items',[]):
+                image_rect = rect_to_image(ext_item['rect'], geo_image)
+                draw_rect(debug_images[k], image_rect, item_color, thickness=2)
+            
+    for plant in actual_plants:
+        for ref in plant.all_refs:
+            if not ref.parent_image_filename:
+                continue
+            geo_image_filenames = [geo_image.file_name for geo_image in debug_geo_images]
+            try:
+                debug_img_index = geo_image_filenames.index(ref.parent_image_filename)
+            except ValueError:
+                continue
+            debug_img = debug_images[debug_img_index]
+            draw_rect(debug_img, ref.bounding_rect, (0, 255, 0), thickness=3)
+            
+    print "Writing out debug images"
+            
+    debug_filepaths = [os.path.join(image_out_directory, postfix_filename(geo_image.file_name, 'marked')) for geo_image in debug_geo_images]
+    for k, (image, filepath) in enumerate(zip(debug_images, debug_filepaths)):
+        cv2.imwrite(filepath, image)
+        debug_geo_images[k].debug_filepath = filepath
+

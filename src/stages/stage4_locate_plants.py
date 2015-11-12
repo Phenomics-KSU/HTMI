@@ -11,30 +11,35 @@ import numpy as np
 
 # Project imports
 from src.util.stage_io import unpickle_stage3_output, pickle_results, write_args_to_file
+from src.util.stage_io import debug_draw_plants_in_images
 from src.stages.exit_reason import ExitReason
-from src.processing.item_processing import dont_overlap_with_items, all_segments_from_rows
-from src.util.image_writer import ImageWriter
-from src.util.image_utils import postfix_filename, draw_rect
-from src.util.clustering import cluster_rectangle_items, rect_to_global, rect_to_image, corner_rect_center
+from src.processing.item_processing import all_segments_from_rows
+from src.util.clustering import cluster_rectangle_items, rect_to_global, rect_to_image
+from src.util.clustering import corner_rect_center, filter_out_noise
 from src.util.plant_localization import RecursiveSplitPlantFilter
 from src.data.field_item import Plant
 
-if __name__ == '__main__':
-    '''Extract out possible plant parts to be clustered in next stage.'''
+def stage4_locate_plants(**args):
+    ''' 
+    Cluster and filter plant parts into actual plants.
+    args should match the names and descriptions of command line parameters,
+    but unlike command line, all arguments must be present.
+    '''
+    # Copy args so we can archive them to a file when function is finished.
+    args_copy = args.copy()
 
-    parser = argparse.ArgumentParser(description='''Extract out possible plant parts to be clustered in next stage.''')
-    parser.add_argument('input_filepath', help='pickled file from stage 3.')
-    parser.add_argument('output_directory', help='where to write output files')
-    parser.add_argument('max_plant_size', help='maximum size of a plant in centimeters')
-    parser.add_argument('-mk', dest='marked_image', default='false', help='If true then will output marked up image.  Default false.')
-
-    args = parser.parse_args()
-    
     # convert command line arguments
-    input_filepath = args.input_filepath
-    out_directory = args.output_directory
-    max_plant_size = float(args.max_plant_size)
-
+    input_filepath = args.pop('input_filepath')
+    out_directory = args.pop('output_directory')
+    max_plant_size = float(args.pop('max_plant_size')) / 100.0 # convert to meters
+    plant_spacing = float(args.pop('plant_spacing')) / 100.0 # convert to meters
+    code_spacing = float(args.pop('code_spacing')) / 100.0 # convert to meters
+    debug_marked_image = args.pop('marked_image').lower() == 'true'
+    
+    if len(args) > 0:
+        print "Unexpected arguments provided: {}".format(args)
+        return ExitReason.bad_arguments
+    
     rows = unpickle_stage3_output(input_filepath)
     
     if len(rows) == 0:
@@ -45,16 +50,13 @@ if __name__ == '__main__':
         os.makedirs(out_directory)
         
     all_segments = all_segments_from_rows(rows)
-    
-    plant_spacing = 0.6096 # meters (24 inches)
-    code_spacing = plant_spacing / 2
+
     plant_filter = RecursiveSplitPlantFilter(code_spacing, plant_spacing)
     
-    item_colors = [(0, 0, 255), (255, 0, 0), (255, 255, 0), (255, 0, 255), (0, 255, 255)]
-    item_idx = 0
-    
-    for segment in all_segments:
+    for seg_num, segment in enumerate(all_segments):
         
+        print "Processing segment {} [{}/{}] with {} images".format(segment.start_code.name, seg_num+1, len(all_segments), len(segment.geo_images))
+    
         # Cluster together leaves and stick parts into possible plants
         possible_plants = []
         for geo_image in segment.geo_images:
@@ -67,23 +69,31 @@ if __name__ == '__main__':
                 leaves = [{'item_type':'leaf', 'rect':rect_to_global(rect, geo_image)} for rect in geo_image.items['leaves']]
                 stick_parts = [{'item_type':'stick_part', 'rect':rect_to_global(rect, geo_image)} for rect in geo_image.items['stick_parts']]
                 plant_parts = leaves + stick_parts
-                #plant_parts = plant_parts[:2]
-                geo_image_possible_plants = cluster_rectangle_items(plant_parts, max_plant_size)
+                geo_image_possible_plants = cluster_rectangle_items(plant_parts, max_plant_size*0.5, max_plant_size)
                 geo_image.items['possible_plants'] = geo_image_possible_plants
                 possible_plants += geo_image_possible_plants
                 
+            # write out period to show that images are being clustered
+            sys.stdout.write('.')
+                
         if len(possible_plants) == 0:
-            #print "Warning: segment {} has no associated images.".format(segment.start_code.name)
+            print "Warning: segment {} has no associated images.".format(segment.start_code.name)
             continue
 
+        print "{} possible plants found".format(len(possible_plants))
+
         # Cluster together possible plants between multiple images.
-        possible_plants = cluster_rectangle_items(possible_plants, max_plant_size)
+        possible_plants = cluster_rectangle_items(possible_plants, max_plant_size*0.7, max_plant_size)
+    
+        possible_plants = filter_out_noise(possible_plants)
     
         for plant in possible_plants:  
             px, py = corner_rect_center(plant['rect'])
             plant['position'] = (px, py, segment.start_code.position[2])
         
         actual_plants = plant_filter.locate_actual_plants_in_segment(possible_plants, segment)
+      
+        print "{} actual plants found".format(len(actual_plants))
       
         for plant in actual_plants:
             global_bounding_rect = plant.bounding_rect
@@ -104,47 +114,16 @@ if __name__ == '__main__':
                     
                     # TODO extract picture of plant
                 
-          
         for plant in actual_plants:
             plant.row = segment.row_number
             segment.add_item(plant)
         
-        print "Segment {} has {} possible plants and {} actual plants".format(segment.start_code.name, len(possible_plants), len(actual_plants))
-        
-        # Write images out to subdirectory to keep separated from pickled results.
-        image_out_directory = os.path.join(out_directory, 'images/')
-        if not os.path.exists(image_out_directory):
-            os.makedirs(image_out_directory)
-            
-        debug_images = []
-        for geo_image in segment.geo_images:
-            if hasattr(geo_image, 'debug_filepath'):
-                path = geo_image.debug_filepath
-            else:
-                path = geo_image.file_path
-            debug_images.append(cv2.imread(geo_image.file_path, cv2.CV_LOAD_IMAGE_COLOR))
-        for item in possible_plants:
-            item_color = item_colors[item_idx % len(item_colors)]
-            for k, geo_image in enumerate(segment.geo_images):
-                for ext_item in [item] + item.get('items',[]):
-                    image_rect = rect_to_image(ext_item['rect'], geo_image)
-                    draw_rect(debug_images[k], image_rect, item_color, thickness=2)
-                
-            item_idx += 1
-            
-        for plant in actual_plants:
-            for ref in plant.all_refs:
-                if not ref.parent_image_filename:
-                    continue
-                geo_image_filenames = [geo_image.file_name for geo_image in segment.geo_images]
-                debug_img_index = geo_image_filenames.index(ref.parent_image_filename)
-                debug_img = debug_images[debug_img_index]
-                draw_rect(debug_img, ref.bounding_rect, (0, 255, 0), thickness=3)
-                
-        debug_filepaths = [os.path.join(image_out_directory, postfix_filename(geo_image.file_name, 'marked')) for geo_image in segment.geo_images]
-        for k, (image, filepath) in enumerate(zip(debug_images, debug_filepaths)):
-            cv2.imwrite(filepath, image)
-            segment.geo_images[k].debug_filepath = filepath
+        if debug_marked_image:
+            debug_draw_plants_in_images(segment.geo_images, possible_plants, actual_plants, out_directory)
+
+    print 'Successfully found {} total plants'.format(plant_filter.num_successfully_found_plants)
+    print 'Created {} plants due to no possible plants'.format(plant_filter.num_created_because_no_plants)
+    print 'Created {} plants due to no valid plants'.format(plant_filter.num_created_because_no_valid_plants)
 
     # go through each plant/code in segment
     # -> then convert bounding box to positions
@@ -157,5 +136,25 @@ if __name__ == '__main__':
     pickle_results(dump_filename, out_directory, rows)
     
     # Write arguments out to file for archiving purposes.
-    write_args_to_file("stage4_args.csv", out_directory, vars(args))
+    write_args_to_file("stage4_args.csv", out_directory, args_copy)
+    
+if __name__ == '__main__':
+    '''Group codes into rows/groups/segments.'''
+
+    parser = argparse.ArgumentParser(description='''Extract out possible plant parts to be clustered in next stage.''')
+    parser.add_argument('input_filepath', help='pickled file from stage 3.')
+    parser.add_argument('output_directory', help='where to write output files')
+    parser.add_argument('max_plant_size', help='maximum size of a plant in centimeters')
+    parser.add_argument('plant_spacing', help='expected distance (in centimeters) between consecutive plant')
+    parser.add_argument('code_spacing', help='expected distance (in centimeters) before or after group or row codes')
+    parser.add_argument('-mk', dest='marked_image', default='false', help='If true then will output marked up image.  Default false.')
+    
+    args = vars(parser.parse_args())
+    
+    exit_code = stage4_locate_plants(**args)
+    
+    if exit_code == ExitReason.bad_arguments:
+        print "\nSee --help for argument descriptions."
+    
+    sys.exit(exit_code)
     

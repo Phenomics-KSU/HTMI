@@ -35,6 +35,7 @@ class RecursiveSplitPlantFilter:
         self.closest_code_spacing = code_spacing / 2.0
         self.closest_plant_spacing = plant_spacing / 2.0
         
+        self.num_successfully_found_plants = 0
         self.num_created_because_no_plants = 0
         self.num_created_because_no_valid_plants = 0
         
@@ -146,6 +147,8 @@ class RecursiveSplitPlantFilter:
         # this global rect will be converted to a rotated image rect later
         selected_plant.bounding_rect = best_plant['rect']
         selected_plant.projection = best_plant['projection']
+        
+        self.num_successfully_found_plants += 1
         
         return selected_plant
             
