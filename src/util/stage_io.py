@@ -46,3 +46,13 @@ def unpickle_stage2_output(input_filepath):
         rows = pickle.load(stage2_file)
         geo_images = pickle.load(stage2_file)
     return rows, geo_images
+
+def unpickle_stage3_output(input_filepath):
+    with open(input_filepath, 'rb') as stage3_file:
+        rows = pickle.load(stage3_file)
+    return rows
+
+def unpickle_stage4_output(input_filepath):
+    with open(input_filepath, 'rb') as stage4_file:
+        rows = pickle.load(stage4_file)
+    return rows

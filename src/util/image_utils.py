@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import os
+import sys
 import math
 
 # OpenCV imports
@@ -84,6 +85,14 @@ def rectangle_center(rectangle, rotated=True):
     else: 
         x, y, w, h = rectangle
         return (x + w/2, y + h/2)
+    
+def rectangle_size(rectangle, rotated=True):
+    '''Returns (width,height) tuple of rectangle size.'''
+    if rotated:
+        _, size, _ = rectangle
+    else: 
+        size = rectangle[2:4]
+        return size
 
 def rectangle_corners(rectangle, rotated=True):
     '''If non-rotated then returns top left (x1, y1) and bottom right (x2, y2) corners as flat tuple.
@@ -115,47 +124,3 @@ def distance_between_rects(rect1, rect2, rotated=True):
     dy = y1 - y2
     return math.sqrt(dx*dx + dy*dy)
 
-def merge_rectangles(rectangles):
-    '''Return rectangle that contains all rectangles.'''
-    
-    raise NotImplementedError
-
-    corners = [rectangle_corners(rectangle) for rectangle in rectangles]
-    x1 = min([c[0] for c in corners])
-    y1 = min([c[1] for c in corners])
-    x2 = max([c[2] for c in corners])
-    y2 = max([c[3] for c in corners])
-    return (x1, y1, x2-x1, y2-y1)
-                
-def cluster_rectangles(rectangles, eps):
-    '''Combine rectangles within eps (pixels) of each other.'''
-    
-    raise NotImplementedError
-
-    groupings = [-1] * len(rectangles)
-    for i, rectangle in enumerate(rectangles):
-        if groupings[i] == -1:
-            groupings[i] = i # haven't been claim yet.
-        for j, other_rectangle in enumerate(rectangles):
-            if i == j:
-                continue # same rectangle
-            if distance_between_rects(rectangle, other_rectangle) < eps:
-                if groupings[j] == -1:
-                    groupings[j] = groupings[i] # claim this rectangle
-                else:
-                    # claim all rectangle with group we're running into
-                    groupings = [groupings[i] if x==groupings[j] else x for x in groupings]
-     
-    used_groupings = list(set(groupings))
-    
-    clustered_rectangles = []
-    for group in used_groupings:
-        # Get all rectangles associated with this group
-        rectangles_in_group = []
-        for i, g in enumerate(groupings):
-            if g == group:
-                rectangles_in_group.append(rectangles[i])
-                
-        clustered_rectangles.append(merge_rectangles(rectangles_in_group))
-   
-    return clustered_rectangles

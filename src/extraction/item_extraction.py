@@ -132,25 +132,43 @@ def extract_rotated_image(image, rotated_rect, pad, trim=0):
     
 def calculate_pixel_position(x, y, geo_image):
     '''Return (x,y,z) position of pixel within geo image.'''
-    resolution = geo_image.resolution
     # Reference x y from center of image instead of top left corner.
-    x = x - geo_image.size[0]/2
-    y = -y + geo_image.size[1]/2
+    x = x - geo_image.size[0] / 2
+    y = -y + geo_image.size[1] / 2
     # Rotate x y from image frame to easting-northing frame.
     # A camera rotation of 0 corresponds to top of image being forward so need to subtract 90 to get positive x being top of image.
     heading = math.radians(geo_image.heading_degrees + geo_image.camera_rotation_degrees - 90)
     east_offset = math.cos(heading) * x - math.sin(heading) * y
     north_offset = math.sin(heading) * x + math.cos(heading) * y
     # Convert offsets from pixels to meters.
-    east_offset *= resolution / 100
-    north_offset *= resolution / 100
+    east_offset *= geo_image.resolution / 100
+    north_offset *= geo_image.resolution / 100
     # Take into account camera height.  Negative since item is below camera.
     z_meters = 0 # -geo_image.camera_height / 100
     
     return (geo_image.position[0] + east_offset, geo_image.position[1] + north_offset, geo_image.position[2] + z_meters)
 
+def calculate_position_pixel(x, y, geo_image):
+    '''Return (x,y) pixel location of specified (x,y) position within geo image.'''
+    east_offset = x - geo_image.position[0]
+    north_offset = y - geo_image.position[1]
+    # Convert offset from meters to pixels
+    east_offset /= (geo_image.resolution / 100)
+    north_offset /= (geo_image.resolution / 100)
+    # Rotate east/north offsets into image coordinate frame where (0,0) is in middle of image and y increases upwards.
+    heading = math.radians(geo_image.heading_degrees + geo_image.camera_rotation_degrees - 90)
+    x = math.cos(heading) * east_offset + math.sin(heading) * north_offset
+    y = - math.sin(heading) * east_offset + math.cos(heading) * north_offset
+    # Reference x y from top left corner instead of center of image.
+    x = x + geo_image.size[0] / 2
+    y = -y + geo_image.size[1] / 2
+
+    return (x, y)
+
 def calculate_item_position(item, geo_image):
     '''Return (x,y,z) position of item within geo image.'''
     x, y = rectangle_center(item.bounding_rect)
     return calculate_pixel_position(x, y, geo_image)
+    
+
     

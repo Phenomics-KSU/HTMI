@@ -39,11 +39,11 @@ class PlantGroupSegment(object):
     '''Part of a plant grouping. Hit end of row before entire grouping could be planted.'''
     def __init__(self, start_code, end_code, items=None):
         '''Constructor.'''
-        self.items = items # items found in segment not counting start or end QR code.
-        if self.items is None:
-            self.items = []
+        self._items = items # items found in segment not counting start or end QR code.
+        if self._items is None:
+            self._items = []
         self.geo_images = [] # list of geo images that are in (or close enough to) segment.
-        self.group = None # group that segment belongs to.
+        self._group = None # group that segment belongs to.
         self.start_code = start_code # QR code to start segment. Could either be Row, Group or Single Code depending on if segment is starting or ending.
         self.end_code = end_code # QR code that ends segment. Could either be Row, Group or Single Code depending on if segment is starting or ending.
         self.expected_num_plants = -1 # how many plants should be in segment. negative if not sure.
@@ -51,15 +51,25 @@ class PlantGroupSegment(object):
 
     def update_group(self, new_group):
         '''Update the grouping that this segment belongs to and update the reference of all the items stored in the segment.'''
-        self.group = new_group
+        self._group = new_group
         self.start_code.group = new_group
+        for item in self._items:
+            item.group = new_group
     
     def add_item(self, item):
         '''Add item to list of items and updates item reference. Raise ValueError if item is None.'''
         if item is None:
             raise ValueError('Cannot add None item to item group.')
-        self.items.append(item)
-        item.group = self.group
+        self._items.append(item)
+        item.group = self._group
+        
+    @property
+    def items(self):
+        return self._items
+    
+    @property
+    def group(self):
+        return self._group
             
     @property
     def next_segment(self):

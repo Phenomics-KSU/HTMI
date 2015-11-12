@@ -13,7 +13,7 @@ from src.stages.exit_reason import ExitReason
 from src.extraction.leaf_finder import LeafFinder
 from src.extraction.blue_stick_finder import BlueStickFinder
 from src.processing.item_processing import process_geo_image_to_find_plant_parts, get_subset_of_geo_images
-from src.processing.item_processing import dont_overlap_with_items
+from src.processing.item_processing import dont_overlap_with_items, all_segments_from_rows
 from src.util.image_writer import ImageWriter
 
 def is_overlapping_segment(image_ewns, segment):
@@ -105,8 +105,7 @@ if __name__ == '__main__':
     leaf_finder = LeafFinder(0.4, 40)
     stick_finder = BlueStickFinder(14, 0.35)
     
-    segments_by_row = [row.segments for row in rows]
-    all_segments = [seg for row_segments in segments_by_row for seg in row_segments]
+    all_segments = all_segments_from_rows(rows)
     
     for segment in all_segments:
         segment.ewns = calculate_segment_ewns(segment, pad)

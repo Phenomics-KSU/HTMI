@@ -30,7 +30,6 @@ class FieldItem(object):
     def all_refs(self):
         return [self] + self._other_items
         
-    @other_items.setter
     def add_other_item(self, other_item):
         if other_item is self:
             raise ValueError("Can't add self as reference.")

@@ -90,6 +90,11 @@ def all_items(geo_images):
         items.extend(geo_image.items)
     return items
 
+def all_segments_from_rows(rows):
+    segments_by_row = [row.segments for row in rows]
+    all_segments = [seg for row_segments in segments_by_row for seg in row_segments]
+    return all_segments
+
 def order_items(items, camera_rotation):
     '''Return new list but sorted from backward to forward taking into account camera rotation.'''
     if camera_rotation == 180:  # top to bottom
@@ -155,96 +160,6 @@ def calculate_geo_image_corners(geo_image):
     geo_image.top_right_position = calculate_pixel_position(geo_image.width, 0, geo_image)
     geo_image.bottom_right_position = calculate_pixel_position(geo_image.width, geo_image.height, geo_image)
     geo_image.bottom_left_position = calculate_pixel_position(0, geo_image.height, geo_image)
-
-def cluster_merged_items(items, parent_images, cluster_size):
-    
-    clustered_merged_items = []
-    for item in items:
-        clusters = []
-        item_refs = [item] + item.other_items
-        for item_ref in item_refs:
-            added_to_an_existing_cluster = False
-            for cluster in clusters:
-                for clustered_item in cluster:
-                    if position_difference(item_ref.position, clustered_item.position) < cluster_size:
-                        cluster.append(item_ref)
-                        added_to_an_existing_cluster = True
-                        break
-            if not added_to_an_existing_cluster:
-                # make a new cluster
-                clusters.append([item_ref])
-        
-        clusters = sorted(clusters, key=lambda c: len(c), reverse=True)
-        
-        if len(clusters) == 0:
-            continue 
-        
-        # TODO Remove hardcoded removal checks
-        south_end_row_set = 0
-        north_end_row_set = 0
-        #effective_cluster_lengths = []
-        valid_clusters = []
-        for i, cluster in enumerate(clusters):
-            #effective_cluster_length = 0
-            non_bad_items = []
-            for item_ref in cluster:
-                geo_images = [geo_image for geo_image in parent_images if geo_image.file_name == item_ref.parent_image_filename]
-                if len(geo_images) == 0:
-                    continue # no parent image so no time stamp
-                geo_image = geo_images[0]
-                image_time = geo_image.image_time
-                if image_time > 1436381595.84399 and image_time < 1436382495.42099:
-                    south_end_row_set += 1
-                elif image_time > 1436384915.009 and image_time < 1436385609.175:
-                    north_end_row_set += 1
-                else:
-                    #effective_cluster_length += 1
-                    non_bad_items.append(item_ref)
-                    
-            if len(non_bad_items) > 0:
-                valid_clusters.append(non_bad_items)
-            
-            #if len(non_bad_items) != len(cluster):
-            #    print "For {} reducing cluster from {} to {}".format(item.name, len(cluster), len(non_bad_items))
-                    
-        if len(valid_clusters) > 0:
-            clusters = valid_clusters
-        else:
-            pass
-            #print "No valid clusters for {}".format(item.name)
-            
-        '''
-        if item.name == "R.51":
-            print "For R.51"
-            for c, cluster in enumerate(clusters):
-                #print "Cluster {}".format(c)
-                for ref in cluster:
-                    #print "{} in {}".format(ref.position, ref.parent_image_filename)
-        '''
-            
-        kept_cluster = []
-        if len(clusters) == 1:
-            kept_cluster = clusters[0]
-        elif len(clusters) > 1:
-            largest_cluster = clusters[0]
-            second_largest_cluster = clusters[1]
-            
-            if len(largest_cluster) > len(second_largest_cluster):
-                kept_cluster = largest_cluster
-            else:
-                #kept_cluster = largest_cluster
-                for cluster in clusters:
-                    kept_cluster += cluster # keep all clusters
-
-        main_item = kept_cluster[0]
-        main_item.other_items = []
-        for item in kept_cluster[1:]:
-            item.other_items = []
-            main_item.other_items.append(item)
-
-        clustered_merged_items.append(main_item)
-
-    return clustered_merged_items
         
 def position_difference(position1, position2):
     '''Return difference in XY positions between both items.'''
@@ -347,4 +262,42 @@ def lateral_and_projection_distance_2d(p, a, b):
     lateral_error = lateral_error_sign * lateral_error_magnitude
     
     return lateral_error, a_to_b_traveled_mag
+
+def projection_to_position_2d(projection, a, b):
+    '''Return position associated with projecting along vector from points (a) to (b).'''
+    a_to_b = (b[0] - a[0], b[1] - a[1])
+    a_to_b_mag = sqrt(a_to_b[0]*a_to_b[0] + a_to_b[1]*a_to_b[1])
+    
+    if a_to_b_mag == 0.0:
+        print "Warning: Vector from point a to b has zero magnitude. Returning NaN."
+        return float('NaN')
+
+    a_to_b_unit = [0, 0]
+    a_to_b_unit[0] = a_to_b[0] / a_to_b_mag
+    a_to_b_unit[1] = a_to_b[1] / a_to_b_mag
+    
+    x_offset = projection * a_to_b_unit[0]
+    y_offset = projection * a_to_b_unit[1]
+    
+    return (a[0] + x_offset, a[1] + y_offset)
+
+def calculate_field_positions(items):
+    
+    first_group_code = None
+    for item in items:
+        if item.type.lower() == 'groupcode':
+            first_group_code = item
+            break
+        
+    if first_group_code is None:
+        print "No group codes. Exiting"
+        sys.exit(1)
+                
+    first_position = first_group_code.position
+    
+    for item in items:
+        rel_x = item.position[0] - first_position[0]
+        rel_y = item.position[1] - first_position[1]
+        rel_z = item.position[2] - first_position[2]
+        item.field_position = (rel_x, rel_y, rel_z)
  
