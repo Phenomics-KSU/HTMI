@@ -24,8 +24,8 @@ class BlueStickFinder:
         hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         
         # Create binary mask image where potential sticks are white.
-        lower_blue = np.array([67, 15, 5], np.uint8)
-        upper_blue = np.array([142, 255, 255], np.uint8)
+        lower_blue = np.array([90, 31, 16], np.uint8)
+        upper_blue = np.array([130, 255, 255], np.uint8)
         mask = cv2.inRange(hsv_image, lower_blue, upper_blue)
         
         # Open mask (to remove noise) and then dilate it to connect contours.

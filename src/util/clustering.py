@@ -11,6 +11,7 @@ import numpy as np
 # Project imports
 from src.util.image_utils import rotated_to_regular_rect, rectangle_corners
 from src.extraction.item_extraction import calculate_pixel_position, calculate_position_pixel
+from src.processing.item_processing import position_difference
 
 def rect_to_global(rect, geo_image, rotated=True):
     '''Convert rect in pixels to tuple of 4 corners in global coordinates (in meters).'''
@@ -94,6 +95,20 @@ def merge_clusters(c1, c2):
     merged_items = c1.get('items', [c1]) + c2.get('items', [c2])
     return {'rect':merged_rect, 'items':merged_items}
 
+def cluster_geo_image_items(geo_image, segment, max_plant_size):
+    # Merge items into possible plants, while referencing rectangle off global coordinates so we can
+    # compare rectangles between multiple images.
+    leaves = [{'item_type':'leaf', 'rect':rect_to_global(rect, geo_image)} for rect in geo_image.items['leaves']]
+    stick_parts = [{'item_type':'stick_part', 'rect':rect_to_global(rect, geo_image)} for rect in geo_image.items['stick_parts']]
+    if segment.is_special:
+        plant_parts = leaves # no blue sticks in single plants
+        plant_parts = remove_plant_parts_close_to_code(plant_parts, segment.start_code, 0.04)
+    else:
+        plant_parts = leaves + stick_parts
+    geo_image_possible_plants = cluster_rectangle_items(plant_parts, max_plant_size*0.5, max_plant_size)
+    geo_image.items['possible_plants'] = geo_image_possible_plants
+    return geo_image_possible_plants
+
 def cluster_rectangle_items(items, max_spacing, max_size):
     ''''''
     clusters = copy.copy(items)
@@ -134,6 +149,17 @@ def filter_out_noise(possible_plants):
     for possible_plant in possible_plants:
         if len(possible_plant.get('items',[])) > 1:
             xsize, ysize = corner_rectangle_size(possible_plant['rect'])
-            if xsize > 0.015 or ysize > 0.015:
+            if xsize > 0.015 or ysize > 0.015: # TODO remove hard coded numbers
                 filtered_possible_plants.append(possible_plant)
     return filtered_possible_plants
+
+def remove_plant_parts_close_to_code(plant_parts, code, closest_dist):
+    '''Return updated plant part list such that none are within 'closest_dist' of code.'''
+    filtered_plant_parts = []
+    for part in plant_parts:
+        x, y = corner_rect_center(part['rect'])
+        dist_to_item = position_difference((x, y), code.position)
+        if dist_to_item > closest_dist:
+            filtered_plant_parts.append(part)
+
+    return filtered_plant_parts

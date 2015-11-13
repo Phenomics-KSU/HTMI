@@ -14,10 +14,10 @@ from src.util.stage_io import unpickle_stage3_output, pickle_results, write_args
 from src.util.stage_io import debug_draw_plants_in_images
 from src.stages.exit_reason import ExitReason
 from src.processing.item_processing import all_segments_from_rows
-from src.util.clustering import cluster_rectangle_items, rect_to_global, rect_to_image
+from src.util.clustering import cluster_rectangle_items, cluster_geo_image_items
 from src.util.clustering import corner_rect_center, filter_out_noise
-from src.util.plant_localization import RecursiveSplitPlantFilter
-from src.data.field_item import Plant
+from src.util.plant_localization import RecursiveSplitPlantFilter, ClosestSinglePlantFilter
+from src.extraction.item_extraction import extract_global_plants_from_images
 
 def stage4_locate_plants(**args):
     ''' 
@@ -34,6 +34,7 @@ def stage4_locate_plants(**args):
     max_plant_size = float(args.pop('max_plant_size')) / 100.0 # convert to meters
     plant_spacing = float(args.pop('plant_spacing')) / 100.0 # convert to meters
     code_spacing = float(args.pop('code_spacing')) / 100.0 # convert to meters
+    single_max_dist = float(args.pop('single_max_dist')) / 100.0 # convert to meters
     debug_marked_image = args.pop('marked_image').lower() == 'true'
     
     if len(args) > 0:
@@ -51,7 +52,9 @@ def stage4_locate_plants(**args):
         
     all_segments = all_segments_from_rows(rows)
 
-    plant_filter = RecursiveSplitPlantFilter(code_spacing, plant_spacing)
+    # Use different filters for normal vs. single segments
+    normal_plant_filter = RecursiveSplitPlantFilter(code_spacing, plant_spacing)
+    closest_plant_filter = ClosestSinglePlantFilter(single_max_dist)
     
     for seg_num, segment in enumerate(all_segments):
         
@@ -64,21 +67,14 @@ def stage4_locate_plants(**args):
                 # Already clustered this image.
                 possible_plants += geo_image.items['possible_plants']
             else:
-                # Merge items into possible plants, while referencing rectangle off global coordinates so we can
-                # compare rectangles between multiple images.
-                leaves = [{'item_type':'leaf', 'rect':rect_to_global(rect, geo_image)} for rect in geo_image.items['leaves']]
-                stick_parts = [{'item_type':'stick_part', 'rect':rect_to_global(rect, geo_image)} for rect in geo_image.items['stick_parts']]
-                plant_parts = leaves + stick_parts
-                geo_image_possible_plants = cluster_rectangle_items(plant_parts, max_plant_size*0.5, max_plant_size)
-                geo_image.items['possible_plants'] = geo_image_possible_plants
-                possible_plants += geo_image_possible_plants
+                possible_plants += cluster_geo_image_items(geo_image, segment, max_plant_size)
                 
             # write out period to show that images are being clustered
             sys.stdout.write('.')
                 
         if len(possible_plants) == 0:
             print "Warning: segment {} has no associated images.".format(segment.start_code.name)
-            continue
+            #continue
 
         print "{} possible plants found".format(len(possible_plants))
 
@@ -91,28 +87,14 @@ def stage4_locate_plants(**args):
             px, py = corner_rect_center(plant['rect'])
             plant['position'] = (px, py, segment.start_code.position[2])
         
-        actual_plants = plant_filter.locate_actual_plants_in_segment(possible_plants, segment)
-      
-        print "{} actual plants found".format(len(actual_plants))
-      
-        for plant in actual_plants:
-            global_bounding_rect = plant.bounding_rect
-            if global_bounding_rect is None:
-                continue
-            for k, geo_image in enumerate(segment.geo_images):
-                image_rect = rect_to_image(global_bounding_rect, geo_image)
-                x, y = image_rect[0]
-                if x > 0 and x < geo_image.width and y > 0 and y < geo_image.height:
-                    if not plant.parent_image_filename.strip():
-                        plant.bounding_rect = image_rect
-                        plant.parent_image_filename = geo_image.file_name
-                    else:
-                        plant_copy = Plant('plant', position=plant.position, zone=plant.zone)
-                        plant_copy.bounding_rect = image_rect
-                        plant_copy.parent_image_filename = geo_image.file_name
-                        plant.add_other_item(plant_copy)
-                    
-                    # TODO extract picture of plant
+        if segment.is_special:
+            selected_plant = closest_plant_filter.find_actual_plant(possible_plants, segment)
+            actual_plants = [selected_plant] 
+        else:
+            actual_plants = normal_plant_filter.locate_actual_plants_in_segment(possible_plants, segment)
+            print "{} actual plants found".format(len(actual_plants))
+        
+        extract_global_plants_from_images(actual_plants, segment.geo_images)
                 
         for plant in actual_plants:
             plant.row = segment.row_number
@@ -121,14 +103,14 @@ def stage4_locate_plants(**args):
         if debug_marked_image:
             debug_draw_plants_in_images(segment.geo_images, possible_plants, actual_plants, out_directory)
 
-    print 'Successfully found {} total plants'.format(plant_filter.num_successfully_found_plants)
-    print 'Created {} plants due to no possible plants'.format(plant_filter.num_created_because_no_plants)
-    print 'Created {} plants due to no valid plants'.format(plant_filter.num_created_because_no_valid_plants)
+    print "\n---------Normal Groups----------"
+    print 'Successfully found {} total plants'.format(normal_plant_filter.num_successfully_found_plants)
+    print 'Created {} plants due to no possible plants'.format(normal_plant_filter.num_created_because_no_plants)
+    print 'Created {} plants due to no valid plants'.format(normal_plant_filter.num_created_because_no_valid_plants)
 
-    # go through each plant/code in segment
-    # -> then convert bounding box to positions
-    # -> then go through every image and see if position is on imame.. if it is then draw box.
-    # -> change color of box for next item
+    print "\n---------Single Groups----------"
+    print 'Successfully found {} total plants'.format(closest_plant_filter.num_successfully_found_plants)
+    print 'Created {} plants due to no valid plants'.format(closest_plant_filter.num_created_because_no_plants)
 
     # Pickle
     dump_filename = "stage4_output.s4"
@@ -141,12 +123,13 @@ def stage4_locate_plants(**args):
 if __name__ == '__main__':
     '''Group codes into rows/groups/segments.'''
 
-    parser = argparse.ArgumentParser(description='''Extract out possible plant parts to be clustered in next stage.''')
+    parser = argparse.ArgumentParser(description='''Group codes into rows/groups/segments.''')
     parser.add_argument('input_filepath', help='pickled file from stage 3.')
     parser.add_argument('output_directory', help='where to write output files')
     parser.add_argument('max_plant_size', help='maximum size of a plant in centimeters')
     parser.add_argument('plant_spacing', help='expected distance (in centimeters) between consecutive plant')
     parser.add_argument('code_spacing', help='expected distance (in centimeters) before or after group or row codes')
+    parser.add_argument('single_max_dist', help='maximum distance (in centimeters) that a plant can be separate from a single code')
     parser.add_argument('-mk', dest='marked_image', default='false', help='If true then will output marked up image.  Default false.')
     
     args = vars(parser.parse_args())

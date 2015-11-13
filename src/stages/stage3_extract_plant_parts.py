@@ -41,17 +41,22 @@ def calculate_segment_ewns(segment, pad):
     p1 = segment.start_code.position
     p2 = segment.end_code.position
     
-    if segment.is_special:
-        # segment is centered on start code
-        east = p1[0] + pad
-        west = p1[0] - pad
-        north = p1[1] + pad
-        south = p1[1] - pad
-    else:
-        east = max(p1[0], p2[0]) + pad
-        west = min(p1[0], p2[0]) - pad
-        north = max(p1[1], p2[1]) + pad
-        south = min(p1[1], p2[1]) - pad
+    east = max(p1[0], p2[0]) + pad
+    west = min(p1[0], p2[0]) - pad
+    north = max(p1[1], p2[1]) + pad
+    south = min(p1[1], p2[1]) - pad
+        
+    return (east, west, north, south)
+
+def calculate_special_segment_ewns(segment, pad):
+    
+    p1 = segment.start_code.position
+
+    # segment is centered on start code
+    east = p1[0] + pad
+    west = p1[0] - pad
+    north = p1[1] + pad
+    south = p1[1] - pad
         
     return (east, west, north, south)
 
@@ -62,6 +67,8 @@ if __name__ == '__main__':
     parser.add_argument('input_filepath', help='pickled file from stage 2.')
     parser.add_argument('output_directory', help='where to write output files')
     parser.add_argument('pad', help='how far (in meters) to pad around each segment border to determine if image overlaps.')
+    parser.add_argument('special_pad', help='how far (in meters) to pad around each special single code to determine if image overlaps.')
+    #parser.add_argument('closest_code_dist', help='Anything closer to a code by this distance (in centimeters) will be filtered out as a code part.')
     parser.add_argument('-mk', dest='marked_image', default='false', help='If true then will output marked up image.  Default false.')
     parser.add_argument('-debug_start', dest='debug_start', default='__none__', help='Substring in image name to start processing at.')
     parser.add_argument('-debug_stop', dest='debug_stop', default='__none__', help='Substring in image name to stop processing at.')
@@ -72,6 +79,8 @@ if __name__ == '__main__':
     input_filepath = args.input_filepath
     out_directory = args.output_directory
     pad = float(args.pad)
+    special_pad = float(args.special_pad)
+    #closest_code_dist = float(args.closest_code_dist) / 100 # convert to meters
     use_marked_image = args.marked_image.lower() == 'true'
     debug_start = args.debug_start
     debug_stop = args.debug_stop
@@ -81,7 +90,6 @@ if __name__ == '__main__':
     if len(rows) == 0 or len(geo_images) == 0:
         print "No rows or no geo images could be loaded from {}".format(input_filepath)
         sys.exit(ExitReason.no_rows)
-    
     
     ImageWriter.level = ImageWriter.DEBUG
     
@@ -93,7 +101,6 @@ if __name__ == '__main__':
     rows = sorted(rows, key=lambda r: r.number)
     
     # Look for start/stop filenames so user doesn't have to process all images.
-    # Look for start/stop filenames so user doesn't have to process all images.
     start_geo_index, stop_geo_index = get_subset_of_geo_images(geo_images, debug_start, debug_stop)
         
     print "Processing geo images {} through {}".format(start_geo_index, stop_geo_index)
@@ -104,11 +111,14 @@ if __name__ == '__main__':
 
     leaf_finder = LeafFinder(0.4, 40)
     stick_finder = BlueStickFinder(14, 0.35)
-    
+
     all_segments = all_segments_from_rows(rows)
     
     for segment in all_segments:
-        segment.ewns = calculate_segment_ewns(segment, pad)
+        if segment.is_special:
+            segment.ewns = calculate_special_segment_ewns(segment, special_pad)
+        else:
+            segment.ewns = calculate_segment_ewns(segment, pad)
     
     num_matched = [] # keep track of how many segments each image maps to.
     num_leaves = [] # how many leaves are in each processed image
@@ -132,9 +142,10 @@ if __name__ == '__main__':
             
         leaves, sticks = process_geo_image_to_find_plant_parts(geo_image, leaf_finder, stick_finder, image_out_directory, use_marked_image)
         
-        # Remove any false positive leaves or sticks that came from codes. 
-        leaves = dont_overlap_with_items(geo_image.items['codes'], leaves)
-        sticks = dont_overlap_with_items(geo_image.items['codes'], sticks)
+        # Remove any false positive leaves or sticks that came from codes.
+        geo_codes = geo_image.items['codes'] 
+        leaves = dont_overlap_with_items(geo_codes, leaves)
+        sticks = dont_overlap_with_items(geo_codes, sticks)
         
         geo_image.items['leaves'] = leaves
         geo_image.items['stick_parts'] = sticks

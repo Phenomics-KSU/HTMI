@@ -10,6 +10,7 @@ import numpy as np
 # Project imports
 from src.util.image_writer import ImageWriter
 from src.util.image_utils import *
+from src.data.field_item import Plant
 
 def locate_items(locators, geo_image, image, marked_image):
     '''Locate and return list of items found using 'locators' in image.'''
@@ -170,5 +171,26 @@ def calculate_item_position(item, geo_image):
     x, y = rectangle_center(item.bounding_rect)
     return calculate_pixel_position(x, y, geo_image)
     
+def extract_global_plants_from_images(plants, geo_images):
+    
+    for plant in plants:
+        global_bounding_rect = plant.bounding_rect
+        if global_bounding_rect is None:
+            continue
+        for k, geo_image in enumerate(geo_images):
+            from src.util.clustering import rect_to_image
+            image_rect = rect_to_image(global_bounding_rect, geo_image)
+            x, y = image_rect[0]
+            if x > 0 and x < geo_image.width and y > 0 and y < geo_image.height:
+                if not plant.parent_image_filename.strip():
+                    plant.bounding_rect = image_rect
+                    plant.parent_image_filename = geo_image.file_name
+                else:
+                    plant_copy = Plant('plant', position=plant.position, zone=plant.zone)
+                    plant_copy.bounding_rect = image_rect
+                    plant_copy.parent_image_filename = geo_image.file_name
+                    plant.add_other_item(plant_copy)
+                
+                # TODO extract picture of plant
 
     

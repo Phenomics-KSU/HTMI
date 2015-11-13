@@ -10,6 +10,8 @@ import numpy as np
 # Project imports
 from src.data.field_item import Plant
 from src.processing.item_processing import lateral_and_projection_distance_2d, projection_to_position_2d
+from src.processing.item_processing import position_difference
+from src.util.clustering import corner_rectangle_size
 
 class SegmentPart:
     
@@ -276,3 +278,67 @@ class RecursiveSplitPlantFilter:
         plant_part_confidence = 1 * blue_stick_multiplier * leaf_multiplier
             
         return plant_part_confidence
+    
+class ClosestSinglePlantFilter:
+    
+    def __init__(self, max_single_distance):
+        
+        self.max_single_distance = max_single_distance
+        
+        self.num_successfully_found_plants = 0
+        self.num_created_because_no_plants = 0
+    
+    def find_actual_plant(self, possible_plants, segment):
+        
+        for possible_plant in possible_plants:
+            distance_to_code = position_difference(possible_plant['position'], segment.start_code.position)
+            
+            closeness_penalty = self.calculate_closeness_penalty(distance_to_code)
+            num_items_penalty = self.calculate_num_items_penalty(possible_plant)
+            
+            possible_plant['penalty'] = closeness_penalty + 0.2*num_items_penalty
+            
+        valid_plants = [p for p in possible_plants if not math.isnan(p['penalty'])]
+            
+        if len(valid_plants) == 0:
+            best_plant = None # none of the possible plants worked out
+        else:
+            best_plant = sorted(valid_plants, key=lambda p: p['penalty'])[0]
+            
+        if best_plant is None:
+            position = segment.start_code.position
+            bounding_rect = None
+        else:
+            position = best_plant['position']
+            bounding_rect = best_plant['rect']
+            self.num_successfully_found_plants += 1
+            
+        plant = Plant('plant', position=position, zone=segment.start_code.zone, bounding_rect=bounding_rect)
+        
+        return plant
+    
+    def calculate_closeness_penalty(self, distance):
+        
+        if distance < self.max_single_distance:
+            y = (1.0 / self.max_single_distance) * distance
+        else:
+            y = float('NaN')
+            
+        return y
+    
+    def calculate_num_items_penalty(self, possible_plant):
+        
+        try:
+            num_items = len(possible_plant['items'])
+        except ValueError:
+            num_items = 1
+        
+        if num_items < 2:
+            penalty = 1
+        if num_items < 3:
+            penalty = 0.5
+        else:
+            penalty = 0
+        
+        return penalty
+        
