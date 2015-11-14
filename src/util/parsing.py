@@ -2,6 +2,7 @@
 
 import os
 import math
+from collections import namedtuple
 
 # Project imports
 from src.data.geo_image import GeoImage
@@ -38,9 +39,16 @@ def parse_geo_file(image_geo_file, provided_resolution, camera_rotation):
             
     return images
 
-def parse_grouping_file(group_filename):
-    '''Parse file and return list of tuples (group_name, number_plants) for each row.'''
-    groups = []
+def parse_code_listing_file(group_filename):
+    '''
+    Parse file and return list of named tuples and flag indicating if alternate id is included
+        true: list of tuples is (code_id, max_number_plants, alternate_id)
+        false: list of tuples is (code_id, max_number_plants)
+    '''
+    code_listings = []
+    alternate_ids_included = False
+    CodeListing = namedtuple('CodeListing', 'id max_plants')
+    CodeListingAlternate = namedtuple('CodeListingAlternate', 'id max_plants alternate_id')
     with open(group_filename, 'r') as group_file:
         lines = group_file.readlines()
         for line in lines:
@@ -50,18 +58,20 @@ def parse_grouping_file(group_filename):
             if len(fields) == 0:
                 continue
             try:
-                order_entered = int(fields[0])
-                qr_id = fields[1]
-                flag = fields[2] # just entry x rep combined
-                entry = fields[3]
-                rep = fields[4].upper()
-                estimated_num_plants = int(fields[5])
-                groups.append((qr_id, entry, rep, estimated_num_plants, order_entered))
+                code_id = fields[0]
+                max_plants = int(fields[1])
+                if len(fields) > 2 and fields[2] != '':
+                    alternate_id = fields[2]
+                    alternate_ids_included = True
+                    new_listing = CodeListingAlternate(code_id, max_plants, alternate_id)
+                else:
+                    new_listing = CodeListing(code_id, max_plants)
+                code_listings.append(new_listing)
             except (IndexError, ValueError):
                 print 'Bad line: {0}'.format(line) 
                 continue
             
-    return groups
+    return code_listings, alternate_ids_included
 
 def parse_updated_fix_file(updated_items_filepath):
     '''Parse file and return list of tuples (group_name, number_plants) for each row.'''

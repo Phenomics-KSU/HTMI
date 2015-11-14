@@ -29,6 +29,7 @@ def stage1_extract_codes(**args):
     image_directory = args.pop('image_directory')
     image_geo_file = args.pop('image_geo_file')
     out_directory = args.pop('output_directory')
+    postfix_id = args.pop('postfix_id')
     code_min_size = float(args.pop('code_min_size'))
     code_max_size = float(args.pop('code_max_size'))
     provided_resolution = float(args.pop('resolution'))
@@ -94,7 +95,7 @@ def stage1_extract_codes(**args):
 
     code_finder = CodeFinder(code_min_size, code_max_size)
     
-    ImageWriter.level = ImageWriter.DEBUG
+    ImageWriter.level = ImageWriter.NORMAL
     
     # Write images out to subdirectory to keep separated from pickled results.
     image_out_directory = os.path.join(out_directory, 'images/')
@@ -117,7 +118,7 @@ def stage1_extract_codes(**args):
         if answer.lower() != 'y':
             return ExitReason.user_interrupt
   
-    dump_filename = "stage1_output_{}_{}.s1".format(int(geo_images[0].image_time), int(geo_image.image_time))
+    dump_filename = "stage1_output_{}_{}_{}.s1".format(postfix_id, int(geo_images[0].image_time), int(geo_image.image_time))
     print "Serializing {} geo images and {} codes to {}.".format(len(geo_images), len(codes), dump_filename)
     pickle_results(dump_filename, out_directory, geo_images, codes)
     
@@ -130,7 +131,7 @@ def stage1_extract_codes(**args):
         print "Merged codes not being saved.  Just for user information."
 
     # Write arguments out to file for archiving purposes.
-    args_filename = "stage1_args_{}_{}.csv".format(int(geo_images[0].image_time), int(geo_image.image_time))
+    args_filename = "stage1_args_{}_{}_{}.csv".format(postfix_id, int(geo_images[0].image_time), int(geo_image.image_time))
     write_args_to_file(args_filename, out_directory, args_copy)
         
     return ExitReason.success
@@ -142,6 +143,7 @@ if __name__ == '__main__':
     parser.add_argument('image_directory', help='where to search for images to process')
     parser.add_argument('image_geo_file', help='file with position/heading data for each image.')
     parser.add_argument('output_directory', help='where to write output files')
+    parser.add_argument('postfix_id', help='unique string to be appended to output files. For example could be camera name.')
     parser.add_argument('code_min_size', help='Minimum side length of code item in centimeters. Must be > 0')
     parser.add_argument('code_max_size', help='Maximum side length of code item in centimeters. Must be > 0')
     parser.add_argument('-rs', dest='resolution', default=0, help='Image resolution in centimeter/pixel.')

@@ -91,7 +91,7 @@ if __name__ == '__main__':
         print "No rows or no geo images could be loaded from {}".format(input_filepath)
         sys.exit(ExitReason.no_rows)
     
-    ImageWriter.level = ImageWriter.DEBUG
+    ImageWriter.level = ImageWriter.NORMAL
     
     # Write images out to subdirectory to keep separated from pickled results.
     image_out_directory = os.path.join(out_directory, 'images/')

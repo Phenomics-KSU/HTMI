@@ -6,6 +6,7 @@ import os
 # Project imports
 from src.util.grouping import *
 from src.util.stage_io import unpickle_stage1_output, pickle_results, write_args_to_file
+from src.util.parsing import parse_code_listing_file
 from src.processing.item_processing import merge_items
 from src.stages.exit_reason import ExitReason
 
@@ -23,9 +24,14 @@ def stage2_group_codes(**args):
     field_direction = float(args.pop('field_direction'))
     output_directory = args.pop('output_directory')
     row_labeling_scheme = int(args.pop('row_labeling_scheme'))
+    code_list_filepath = args.pop('code_list_filepath')
     
     if len(args) > 0:
         print "Unexpected arguments provided: {}".format(args)
+        return ExitReason.bad_arguments
+    
+    if not os.path.exists(code_list_filepath):
+        print "Code list file doesn't exist {}".format(code_list_filepath)
         return ExitReason.bad_arguments
     
     geo_images, all_codes = unpickle_stage1_output(input_directory)
@@ -41,11 +47,11 @@ def stage2_group_codes(**args):
 
     print '{} unique codes.'.format(len(merged_codes))
                 
+    code_listings, alternate_ids_included = parse_code_listing_file(code_list_filepath)
+                
     row_codes = [code for code in merged_codes if code.type.lower() == 'rowcode']
     group_codes = [code for code in merged_codes if code.type.lower() == 'groupcode']
     single_codes = [code for code in merged_codes if code.type.lower() == 'singlecode']
-
-    #associate_ids_to_entry_rep(group_codes)
         
     if row_labeling_scheme == 0:
         
@@ -95,6 +101,9 @@ def stage2_group_codes(**args):
     groups = complete_groups(end_segments, single_segments, field_passes)
         
     handle_single_segments(single_segments, groups)
+    
+    # Add in information about max number of plants and optional alternate ids.
+    apply_code_listings(code_listings, groups, alternate_ids_included)
         
     display_segment_info(group_segments, special_segments, groups)
     
@@ -117,7 +126,8 @@ if __name__ == '__main__':
     parser.add_argument('field_direction', help='Planting angle of entire field.  0 degrees East and increases CCW.')
     parser.add_argument('output_directory', help='where to write output files')
     parser.add_argument('row_labeling_scheme', help='if 0 then uses simple row number, if 1 then uses pass numbering with St/En and L/R in row codes')
-    
+    parser.add_argument('code_list_filepath', help='Filepath to code list CSV file. If 3 columns then must be code, max plants, alternate_ids. If 2 columns then must exclude alternate ids.')
+
     args = vars(parser.parse_args())
     
     exit_code = stage2_group_codes(**args)

@@ -358,6 +358,20 @@ def handle_single_segments(single_segments, groups):
         new_group.add_segment(segment)
         groups.append(new_group)
 
+def apply_code_listings(code_listings, groups, alternate_ids_included):
+    
+    for group in groups:
+        
+        matched_listings = [listing for listing in code_listings if group.start_code.name == listing.id]
+        
+        if len(matched_listings) == 0:
+            continue # no match
+        
+        matched_listing = matched_listings[0]
+        group.expected_num_plants = matched_listing.max_plants
+        if alternate_ids_included:
+            group.start_code.alternate_id = matched_listing.alternate_id
+
 def display_segment_info(group_segments, special_segments, groups):
     print "{} special segments.".format(len(special_segments))
     print "Combined {} segments into {} groups.".format(len(group_segments), len(groups))
