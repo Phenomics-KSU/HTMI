@@ -28,12 +28,19 @@ class Row(object):
     @property
     def group_segments(self):
         '''Return list of segments in row that have plants between codes.'''
-        return [s for s in self.segments if not s.is_special()]
+        return [s for s in self.segments if not s.is_special]
 
     @property
     def special_segments(self):
         '''Return list of segments in row that just have a single plant right next to start code.'''
-        return [s for s in self.segments if s.is_special()]
+        return [s for s in self.segments if s.is_special]
+    
+    @property
+    def center_position(self):
+        avg_x = (self.start_code.position[0] + self.end_code.position[0]) / 2.0
+        avg_y = (self.start_code.position[1] + self.end_code.position[1]) / 2.0
+        avg_z = (self.start_code.position[2] + self.end_code.position[2]) / 2.0
+        return (avg_x, avg_y, avg_z)
     
 class PlantGroupSegment(object):
     '''Part of a plant grouping. Hit end of row before entire grouping could be planted.'''

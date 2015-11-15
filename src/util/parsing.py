@@ -73,51 +73,37 @@ def parse_code_listing_file(group_filename):
             
     return code_listings, alternate_ids_included
 
-def parse_updated_fix_file(updated_items_filepath):
-    '''Parse file and return list of tuples (group_name, number_plants) for each row.'''
-    none_items = []
-    missing_items = []
-    all_items = []
-    with open(updated_items_filepath, 'r') as group_file:
-        lines = group_file.readlines()
+def parse_code_modifications_file(code_modifications_filepath):
+    '''Parse file and return list of named tuples for difference modification types.'''
+    AddImagedCode = namedtuple('AddImagedCode', 'id parent_filename, x_pixels, y_pixels')
+    DeleteCode = namedtuple('DeleteCode', 'code_id')
+    code_modifications = []
+    with open(code_modifications_filepath, 'r') as code_modifications_file:
+        lines = code_modifications_file.readlines()
         for line_index, line in enumerate(lines):
-            if line_index == 0:
-                continue # skip column headers
             if line.isspace():
                 continue
             fields = [field.strip() for field in line.split(',')]
-            #fields = filter(None, fields) # remove empty entries
             if len(fields) == 0:
                 continue
             try:
-                name = fields[5]
-                expected_plants = fields[8]
-                actual_plants = fields[9]
-                none_group = fields[10]
-                missing_group = fields[11]
-                notes = fields[12]
-                
-                position = (0, 0, 0)
-          
-                easting = float(fields[17])
-                northing = float(fields[18])
-                altitude = float(fields[19])
-                position = (easting, northing, altitude)
-                
-                item = (name, expected_plants, actual_plants, none_group, missing_group, notes, position)
-                
-                if len(none_group) != 0:
-                    none_items.append(item)
-                if len(missing_group) != 0:
-                    missing_items.append(item)
-                
-                all_items.append(item)
-
+                modification_type = fields[0]
+                if modification_type == 'add_imaged_code':
+                    id = fields[1]
+                    parent_filename = fields[2]
+                    x_pixels = int(fields[3])
+                    y_pixels = int(fields[4])
+                    code_modifications.append(AddImagedCode(id, parent_filename, x_pixels, y_pixels))
+                elif modification_type == 'delete_code':
+                    id = fields[1]
+                    code_modifications.append(DeleteCode(id))
+                else:
+                    print "Unsupported modification {}".format(modification_type)
             except (IndexError, ValueError) as e:
                 print 'Bad line: {}. Exception {}'.format(line, e) 
                 continue
             
-    return all_items, missing_items, none_items
+    return code_modifications
 
 def parse_updated_items(updated_items_filepath):
     

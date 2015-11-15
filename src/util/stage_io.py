@@ -19,7 +19,7 @@ def pickle_results(filename, out_directory, *args):
     
     filename = make_filename_unique(out_directory, filename)
     filepath = os.path.join(out_directory, filename)
-    sys.setrecursionlimit(10000)
+    sys.setrecursionlimit(100000)
     with open(filepath, 'wb') as dump_file:
         for arg in args:
             pickle.dump(arg, dump_file, protocol=2)

@@ -6,8 +6,8 @@ import os
 # Project imports
 from src.util.grouping import *
 from src.util.stage_io import unpickle_stage1_output, pickle_results, write_args_to_file
-from src.util.parsing import parse_code_listing_file
-from src.processing.item_processing import merge_items
+from src.util.parsing import parse_code_listing_file, parse_code_modifications_file
+from src.processing.item_processing import merge_items, apply_code_modifications
 from src.stages.exit_reason import ExitReason
 
 def stage2_group_codes(**args):
@@ -25,6 +25,7 @@ def stage2_group_codes(**args):
     output_directory = args.pop('output_directory')
     row_labeling_scheme = int(args.pop('row_labeling_scheme'))
     code_list_filepath = args.pop('code_list_filepath')
+    code_modifications_filepath = args.pop('code_modifications_filepath')
     
     if len(args) > 0:
         print "Unexpected arguments provided: {}".format(args)
@@ -41,6 +42,14 @@ def stage2_group_codes(**args):
     if len(geo_images) == 0 or len(all_codes) == 0:
         print "Couldn't load any geo images or codes from input directory {}".format(input_directory)
         return ExitReason.no_geo_images
+
+    if code_modifications_filepath != 'none':
+        if not os.path.exists(code_modifications_filepath):
+            print "Provided code modification file {} doesn't exist".format(code_modifications_filepath)
+            return ExitReason.no_geo_images
+        modifications_out_directory = os.path.join(output_directory, 'modifications')
+        code_modifications = parse_code_modifications_file(code_modifications_filepath)
+        geo_images, all_codes = apply_code_modifications(code_modifications, geo_images, all_codes, modifications_out_directory)
 
     # Merge items so they're unique.  One code references other instances of that same code.
     merged_codes = merge_items(all_codes, max_distance=500)
@@ -85,24 +94,28 @@ def stage2_group_codes(**args):
         print "No complete rows found.  Exiting."
         return ExitReason.no_rows
     
-    print [r.number for r in rows]
+    print sorted([r.number for r in rows], key=lambda r: r)
     
+    print "Calculating projections to nearest row"
     codes_with_projections = calculate_projection_to_nearest_row(group_codes + single_codes, rows)
             
+    print "Creating segments"
     group_segments, special_segments = create_segments(codes_with_projections, rows)
         
-    # Go through and organize segments.
+    print "Organizing segments"
     start_segments, middle_segments, end_segments, single_segments = organize_group_segments(group_segments)
     
     if len(middle_segments) > 0:
         print "Middle segments that span entire row aren't supported right now. Exiting"
         return ExitReason.operation_not_supported
     
+    print "Forming groups"
     groups = complete_groups(end_segments, single_segments, field_passes)
         
     handle_single_segments(single_segments, groups)
     
     # Add in information about max number of plants and optional alternate ids.
+    print "Applying code listings"
     apply_code_listings(code_listings, groups, alternate_ids_included)
         
     display_segment_info(group_segments, special_segments, groups)
@@ -127,6 +140,7 @@ if __name__ == '__main__':
     parser.add_argument('output_directory', help='where to write output files')
     parser.add_argument('row_labeling_scheme', help='if 0 then uses simple row number, if 1 then uses pass numbering with St/En and L/R in row codes')
     parser.add_argument('code_list_filepath', help='Filepath to code list CSV file. If 3 columns then must be code, max plants, alternate_ids. If 2 columns then must exclude alternate ids.')
+    parser.add_argument('-cm', dest='code_modifications_filepath', default='none',  help='Filepath to modifications CSV file to add, delete, change existing codes.')
 
     args = vars(parser.parse_args())
     

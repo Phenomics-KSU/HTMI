@@ -16,8 +16,6 @@ from src.util.stage_io import unpickle_stage4_output, write_args_to_file
 from src.stages.exit_reason import ExitReason
 from src.processing.item_processing import calculate_field_positions, all_segments_from_rows
 from src.processing.export_results import export_group_segments, export_results
-from src.util.image_writer import ImageWriter
-from src.util.image_utils import postfix_filename, draw_rect
 from src.util.numbering import number_serpentine, assign_range_number
 
 if __name__ == '__main__':

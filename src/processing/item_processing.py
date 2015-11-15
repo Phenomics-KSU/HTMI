@@ -10,6 +10,7 @@ import cv2
 from src.extraction.item_extraction import *
 from src.util.image_writer import ImageWriter
 from src.util.image_utils import *
+from src.extraction.code_finder import create_qr_code
 
 def process_geo_image(geo_image, locators, image_directory, out_directory, use_marked_image):
     '''Return list of extracted items'''
@@ -94,6 +95,13 @@ def all_segments_from_rows(rows):
     segments_by_row = [row.segments for row in rows]
     all_segments = [seg for row_segments in segments_by_row for seg in row_segments]
     return all_segments
+
+def all_groups_from_segments(segments):
+    groups = []
+    for segment in segments:
+        if segment.group is not None and segment.group not in groups:
+            groups.append(segment.group)
+    return groups
 
 def order_items(items, camera_rotation):
     '''Return new list but sorted from backward to forward taking into account camera rotation.'''
@@ -300,4 +308,51 @@ def calculate_field_positions(items):
         rel_y = item.position[1] - first_position[1]
         rel_z = item.position[2] - first_position[2]
         item.field_position = (rel_x, rel_y, rel_z)
+        
+def apply_code_modifications(modifications, geo_images, all_codes, output_directory):
  
+    for modification in modifications:
+        if type(modification).__name__ == 'AddImagedCode':
+            try:
+                geo_image = [img for img in geo_images if modification.parent_filename == img.file_name][0]
+            except IndexError:
+                print "Can't find a matching geo image for modification".format(modification)
+                continue
+            x = modification.x_pixels
+            y = modification.y_pixels
+            resolution = geo_image.resolution
+            side_length = 10 / resolution
+            bounding_rect = ((x, y), (side_length, side_length), -1)
+            code = create_qr_code(modification.id, bounding_rect)
+            if code is None:
+                print "Can't create code with ID {}".format(modification.id)
+                continue
+            image = cv2.imread(geo_image.file_path, cv2.CV_LOAD_IMAGE_COLOR)
+            if image is None:
+                print 'For modification {} cannot open image {}'.format(modification, geo_image.file_path)
+                continue
+            ImageWriter.output_directory = output_directory
+            try:
+                code = extract_items([code], geo_image, image, None)[0]
+            except IndexError:
+                print "Failure during extraction for modification {}".format(modification)
+                continue
+            all_codes.append(code)
+            geo_image.items['codes'].append(code)
+            print "Successfully added code with ID {}".format(code.name)
+            
+        elif type(modification).__name__ == 'DeleteCode':
+ 
+            id_to_delete = modification.code_id
+            all_codes = [code for code in all_codes if code.name != id_to_delete]
+            
+            num_refs_removed = 0
+            for geo_image in geo_images:
+                matching_codes = [code for code in geo_image.items.get('codes',[]) if code.name == id_to_delete]
+                for code in matching_codes:
+                    geo_image.items['codes'].remove(code)
+                    num_refs_removed += 1
+                
+            print "Removed {} references to code id {} from geo images".format(num_refs_removed, id_to_delete)
+                    
+    return geo_images, all_codes

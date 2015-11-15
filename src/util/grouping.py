@@ -1,12 +1,13 @@
 #! /usr/bin/env python
 
 import sys
+import copy
 from collections import defaultdict, namedtuple
 
 # Project imports
 from src.data.field_item import GroupCode
 from src.data.field_grouping import Row, PlantGroup, PlantGroupSegment
-from src.processing.item_processing import orient_items, lateral_and_projection_distance_2d
+from src.processing.item_processing import orient_items, lateral_and_projection_distance_2d, position_difference
 
 def associate_ids_to_entry_rep(group_codes, grouping_info):
     # Update group codes with entry x rep
@@ -64,12 +65,12 @@ def group_row_codes_by_pass_name(row_codes):
                     print "Error: Bad pass code formats, should be one 'st' and one 'en'. Codes: {} and {}".format(code.name, other_code.name)
                     sys.exit(-1)
                     
-                # Mark that we've already paired the codes so they don't get re-paireds
+                # Mark that we've already paired the codes so they don't get re-paired
                 paired_codes[i] = True
                 paired_codes[j] = True
                 
         if not paired_codes[i]:
-            print "Couldn't find a match for row code {}".format(code.name)
+            print "Couldn't find a match for row code {} found in image {}".format(code.name, code.parent_image_filename)
         
     return grouped_codes
 
@@ -220,32 +221,65 @@ def create_rows_and_field_passes_by_pass_codes(grouped_row_codes, field_directio
     
     return rows, field_passes
 
-def calculate_projection_to_nearest_row(group_codes, rows):
+def calculate_projection_to_nearest_row(codes, rows):
+    
+    # Copy rows so we can add temporary fields without modifying original
+    rows = copy.copy(rows)
+    
+    CodeWithProjection = namedtuple('CodeWithProjection', 'code projection')
     codes_with_projections = []
-    for code in group_codes:
+    
+    # Order codes and rows from left to right
+    codes = sorted(codes, key=lambda c: c.position[0])
+    rows = sorted(rows, key=lambda r: r.center_position[0])
+    
+    for row in rows:
+        row.ordered_items = [row.start_code, row.end_code]
+    
+    for code in codes:
+        
+        rows_with_distance_to_code = [(row, abs(row.center_position[0] - code.position[0])) for row in rows]
+        sorted_rows_with_distance_to_code = sorted(rows_with_distance_to_code, key=lambda r: r[1])
+        closest_rows_to_code = [row[0] for row in sorted_rows_with_distance_to_code[:4]]
         
         min_distance = sys.float_info.max
-        projection_distance = 0 # projection along closest row (in meters) from bottom of field to top.
         closest_row = None
-        for row in rows:
-            start_pos = row.start_code.position
-            end_pos = row.end_code.position
-            distance_to_code, row_projection_distance = lateral_and_projection_distance_2d(code.position, start_pos, end_pos)
+        closest_after_in_closest_row = None
+        for row in closest_rows_to_code:
+            
+            closest_beneath = None
+            closest_after = None
+            for item in row.ordered_items:
+                if code.position[1] > item.position[1]:
+                    closest_beneath = item
+                else:
+                    closest_after = item
+                    break
+
+            if closest_beneath is None or closest_after is None:
+                continue # not in this row for sure
+
+            distance_to_code, _ = lateral_and_projection_distance_2d(code.position, closest_beneath.position, closest_after.position)
             distance_to_code = abs(distance_to_code)
+            
             if distance_to_code < min_distance:
                 min_distance = distance_to_code
-                projection_distance = row_projection_distance
+                closest_after_in_closest_row = closest_after
                 closest_row = row
+                
         if closest_row is not None and min_distance < 3: # TODO remove hard-coded value
+            
+            _, row_projection = lateral_and_projection_distance_2d(code.position, row.start_code.position, row.end_code.position)
+            
+            closest_item_idx = closest_row.ordered_items.index(closest_after_in_closest_row)
+            closest_row.ordered_items.insert(closest_item_idx, code)
+            
             code.row = closest_row.number
-            if closest_row.number == 0:
-                print "closest row has 0 number"
-            CodeWithProjection = namedtuple('CodeWithProjection', 'code projection')
-            codes_with_projections.append(CodeWithProjection(code, projection_distance))
+            codes_with_projections.append(CodeWithProjection(code, row_projection))
         else:
             code.row = -1
             print "Couldn't find a row for code {}. Closest row is {} meters away.".format(code.name, min_distance)
-            
+        
     return codes_with_projections
 
 def create_segments(codes_with_projections, rows):

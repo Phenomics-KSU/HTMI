@@ -54,11 +54,11 @@ class CodeFinder:
         qr_items = []
         for rectangle in filtered_rectangles:
             qr_data = self.scan_image_different_trims_and_threshs(image, rectangle, trims=[0, 3, 8, 12])
-            scan_successful = len(qr_data) != 0
+            scan_successful = len(qr_data) != 0 and len(qr_data[0]) != 0 
 
             if scan_successful:
 
-                qr_code = self.create_qr_code(qr_data[0], rectangle) 
+                qr_code = create_qr_code(qr_data[0], rectangle) 
                 
                 if qr_code is None:
                     print 'WARNING: Invalid QR data found ' + qr_data[0]
@@ -145,26 +145,23 @@ class CodeFinder:
 
         return [symbol.data for symbol in image]
 
-    def create_qr_code(self, qr_data, bounding_rect):
-        '''Return either SingleCode, GroupCode or RowCode depending on data.  Return None if not valid data.'''
+def create_qr_code(qr_data, bounding_rect):
+    '''Return either SingleCode, GroupCode or RowCode depending on data.  Return None if not valid data.'''
         
-        # change misprinted code
-        # TODO remove this
-        if qr_data == 'K000736': 
-            qr_data = '736'
+    if len(qr_data) == 0:
+        qr_data = None
+    elif qr_data[0].lower() == 'k':
+        qr_item = SingleCode(name = qr_data)
+    elif qr_data[-3:-1].lower() in ['st', 'en']: 
+        qr_item = RowCode(name = qr_data)
+        qr_item.row = int(qr_data[:3])
+    elif qr_data.isdigit():
+        qr_item = GroupCode(name = qr_data) 
+    else:
+        qr_item = None
         
-        if qr_data[0].lower() == 'k':
-            qr_item = SingleCode(name = qr_data)
-        elif qr_data[-3:-1].lower() in ['st', 'en']: 
-            qr_item = RowCode(name = qr_data)
-            qr_item.row = int(qr_data[:3])
-        elif qr_data.isdigit():
-            qr_item = GroupCode(name = qr_data) 
-        else:
-            qr_item = None
-            
-        # Fill in any common fields here.
-        if qr_item is not None:
-            qr_item.bounding_rect = bounding_rect
-            
-        return qr_item
+    # Fill in any common fields here.
+    if qr_item is not None:
+        qr_item.bounding_rect = bounding_rect
+        
+    return qr_item
