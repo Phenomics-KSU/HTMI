@@ -36,23 +36,13 @@ class FieldItem(object):
         if other_item.type != self.type:
             raise ValueError("Can't add reference to different type.")
         self.other_items.append(other_item)
+        self._update_fields()
         
-    @property
-    def position(self):
-        return np.mean([self._position] + [ref.position for ref in self.other_items], axis=0)
-        
-    @position.setter
-    def position(self, new_value):
-        self._position = new_value
-        
-    @property
-    def field_position(self):
-        return np.mean([self._field_position] + [ref.field_position for ref in self.other_items], axis=0)
-        
-    @field_position.setter
-    def field_position(self, new_value):
-        self._field_position = new_value
-        
+    def _update_fields(self):
+        '''Update fields that need to change when a new reference is added'''
+        self.position = np.mean([self._position] + [ref.position for ref in self.other_items], axis=0)
+        self.field_position = np.mean([self._field_position] + [ref.field_position for ref in self.other_items], axis=0)   
+    
     @property
     def row(self):
         return self._row
@@ -97,6 +87,26 @@ class FieldItem(object):
     def type(self):
         '''Return type of item (ie plant, code, gap, etc). No need for subclass to override this, it will return name of child class already.'''
         return self.__class__.__name__
+        
+    @property
+    def position(self):
+        '''For legacy purposes, need to remove.'''
+        return self._position
+        
+    @position.setter
+    def position(self, new_value):
+        '''For legacy purposes, need to remove.'''
+        self._position = new_value    
+    
+    @property
+    def field_position(self):
+        '''For legacy purposes, need to remove.'''
+        return self._field_position
+        
+    @field_position.setter
+    def field_position(self, new_value):
+        '''For legacy purposes, need to remove.'''
+        self._field_position = new_value 
         
 class GroupItem(FieldItem):
     '''Field item that belongs to grouping.'''
