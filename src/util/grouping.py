@@ -290,8 +290,8 @@ def create_segments(codes_with_projections, rows):
         codes_in_row = [code for code in codes_with_projections if code.code.row == row.number]
         if len(codes_in_row) == 0:
             print "No codes in row {}. Creating pseudo group code at start.".format(row.number)
-            pseudo_code1 = GroupCode(name='PS{}'.format(row.number), position=row.start_code.position, zone=row.start_code.zone)
-            pseudo_code2 = GroupCode(name='PE{}'.format(row.number), position=row.end_code.position, zone=row.end_code.zone)
+            pseudo_code1 = GroupCode(name='PS{}'.format(row.number), position=row.start_code.position, zone=row.start_code.zone, row=row.number)
+            pseudo_code2 = GroupCode(name='PE{}'.format(row.number), position=row.end_code.position, zone=row.end_code.zone, row=row.number)
             codes_in_row = [(pseudo_code1, 0), (pseudo_code2, 1)]
             
         # Sort codes by projection distance.

@@ -88,6 +88,7 @@ def warn_about_bad_group_lengths(groups, spacing_between_plants):
         if len(group.segments) > 1:
             # Give a little more wiggle room if there's multiple segments
             max_length += spacing_between_plants * 5
+            #continue # temporary, just want to look at single segments
         
         if actual_length > max_length:
             print "Group with start code {} is {} meters too long.".format(group.id, abs(length_difference))
@@ -122,7 +123,8 @@ def warn_about_missing_single_codes(single_segments, spacing_between_plants):
         max_length = spacing_between_plants * 1.75
         
         if actual_length > max_length:
-            print "Single segment {} is {} feet too long.".format(segment.start_code.name, length_difference * 100 / 30)
+            print "\nSingle segment {} to {} is {} feet too long.".format(segment.start_code.name, segment.end_code.name, length_difference * 100 / 30)
+            print "{} to {}.".format(segment.start_code.parent_image_filename, segment.end_code.parent_image_filename)
             num_too_long += 1
     
     print "\n------Single Segment Length Report------"

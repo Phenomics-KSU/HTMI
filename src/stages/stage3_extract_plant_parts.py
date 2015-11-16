@@ -15,75 +15,33 @@ from src.extraction.blue_stick_finder import BlueStickFinder
 from src.processing.item_processing import process_geo_image_to_find_plant_parts, get_subset_of_geo_images
 from src.processing.item_processing import dont_overlap_with_items, all_segments_from_rows
 from src.util.image_writer import ImageWriter
+from src.util.overlap import *
 
-def is_overlapping_segment(image_ewns, segment):
+def stage3_extract_plant_parts(**args):
+    ''' 
+    Extract out possible plant parts to be clustered in next stage.
+    args should match the names and descriptions of command line parameters,
+    but unlike command line, all arguments must be present.
+    '''
+    # Copy args so we can archive them to a file when function is finished.
+    args_copy = args.copy()
     
-    e, w, n, s = image_ewns
-
-    seg_e, seg_w, seg_n, seg_s = segment.ewns
-
-    return n > seg_s and s < seg_n and e > seg_w and w < seg_e
+    # Convert arguments to local variables of the correct type.
+    input_filepath = args.pop('input_filepath')
+    out_directory = args.pop('output_directory')
+    pad = float(args.pop('pad'))
+    min_leaf_size = float(args.pop('min_leaf_size'))
+    max_leaf_size = float(args.pop('max_leaf_size'))
+    min_stick_part_size = float(args.pop('min_stick_part_size'))
+    max_stick_part_size = float(args.pop('max_stick_part_size'))
+    special_pad = float(args.pop('special_pad'))
+    use_marked_image = args.pop('marked_image').lower() == 'true'
+    debug_start = args.pop('debug_start')
+    debug_stop = args.pop('debug_stop')
     
-def calculate_image_ewns(geo_image):
-
-    east = max(geo_image.top_left_position[0], geo_image.top_right_position[0],
-               geo_image.bottom_left_position[0], geo_image.bottom_right_position[0])
-    west = min(geo_image.top_left_position[0], geo_image.top_right_position[0],
-               geo_image.bottom_left_position[0], geo_image.bottom_right_position[0])
-    north = max(geo_image.top_left_position[1], geo_image.top_right_position[1],
-                geo_image.bottom_left_position[1], geo_image.bottom_right_position[1])
-    south = min(geo_image.top_left_position[1], geo_image.top_right_position[1],
-                geo_image.bottom_left_position[1], geo_image.bottom_right_position[1])
-    return (east, west, north, south)
-
-def calculate_segment_ewns(segment, pad):
-    
-    p1 = segment.start_code.position
-    p2 = segment.end_code.position
-    
-    east = max(p1[0], p2[0]) + pad
-    west = min(p1[0], p2[0]) - pad
-    north = max(p1[1], p2[1]) + pad
-    south = min(p1[1], p2[1]) - pad
-        
-    return (east, west, north, south)
-
-def calculate_special_segment_ewns(segment, pad):
-    
-    p1 = segment.start_code.position
-
-    # segment is centered on start code
-    east = p1[0] + pad
-    west = p1[0] - pad
-    north = p1[1] + pad
-    south = p1[1] - pad
-        
-    return (east, west, north, south)
-
-if __name__ == '__main__':
-    '''Extract out possible plant parts to be clustered in next stage.'''
-
-    parser = argparse.ArgumentParser(description='''Extract out possible plant parts to be clustered in next stage.''')
-    parser.add_argument('input_filepath', help='pickled file from stage 2.')
-    parser.add_argument('output_directory', help='where to write output files')
-    parser.add_argument('pad', help='how far (in meters) to pad around each segment border to determine if image overlaps.')
-    parser.add_argument('special_pad', help='how far (in meters) to pad around each special single code to determine if image overlaps.')
-    #parser.add_argument('closest_code_dist', help='Anything closer to a code by this distance (in centimeters) will be filtered out as a code part.')
-    parser.add_argument('-mk', dest='marked_image', default='false', help='If true then will output marked up image.  Default false.')
-    parser.add_argument('-debug_start', dest='debug_start', default='__none__', help='Substring in image name to start processing at.')
-    parser.add_argument('-debug_stop', dest='debug_stop', default='__none__', help='Substring in image name to stop processing at.')
-
-    args = parser.parse_args()
-    
-    # convert command line arguments
-    input_filepath = args.input_filepath
-    out_directory = args.output_directory
-    pad = float(args.pad)
-    special_pad = float(args.special_pad)
-    #closest_code_dist = float(args.closest_code_dist) / 100 # convert to meters
-    use_marked_image = args.marked_image.lower() == 'true'
-    debug_start = args.debug_start
-    debug_stop = args.debug_stop
+    if len(args) > 0:
+        print "Unexpected arguments provided: {}".format(args)
+        return ExitReason.bad_arguments
 
     rows, geo_images = unpickle_stage2_output(input_filepath)
     
@@ -109,8 +67,8 @@ if __name__ == '__main__':
     num_images_not_in_segment = 0
     num_images_without_path = 0
 
-    leaf_finder = LeafFinder(0.4, 40)
-    stick_finder = BlueStickFinder(14, 0.35)
+    leaf_finder = LeafFinder(min_leaf_size, max_leaf_size)
+    stick_finder = BlueStickFinder(min_stick_part_size, max_stick_part_size)
 
     all_segments = all_segments_from_rows(rows)
     
@@ -175,5 +133,30 @@ if __name__ == '__main__':
     pickle_results(dump_filename, out_directory, rows)
     
     # Write arguments out to file for archiving purposes.
-    write_args_to_file("stage3_args.csv", out_directory, vars(args))
+    write_args_to_file("stage3_args.csv", out_directory, vars(args_copy))
+    
+if __name__ == '__main__':
+    '''Extract out possible plant parts to be clustered in next stage.'''
+
+    parser = argparse.ArgumentParser(description='''Extract out possible plant parts to be clustered in next stage.''')
+    parser.add_argument('input_filepath', help='pickled file from stage 2.')
+    parser.add_argument('output_directory', help='where to write output files')
+    parser.add_argument('pad', help='how far (in meters) to pad around each segment border to determine if image overlaps.')
+    parser.add_argument('special_pad', help='how far (in meters) to pad around each special single code to determine if image overlaps.')
+    parser.add_argument('min_leaf_size', help='in centimeters')
+    parser.add_argument('max_leaf_size', help='in centimeters')
+    parser.add_argument('min_stick_part_size', help='in centimeters')
+    parser.add_argument('max_stick_part_size', help='in centimeters')
+    parser.add_argument('-mk', dest='marked_image', default='false', help='If true then will output marked up image.  Default false.')
+    parser.add_argument('-debug_start', dest='debug_start', default='__none__', help='Substring in image name to start processing at.')
+    parser.add_argument('-debug_stop', dest='debug_stop', default='__none__', help='Substring in image name to stop processing at.')
+
+    args = vars(parser.parse_args())
+    
+    exit_code = stage3_extract_plant_parts(**args)
+    
+    if exit_code == ExitReason.bad_arguments:
+        print "\nSee --help for argument descriptions."
+    
+    sys.exit(exit_code)
     

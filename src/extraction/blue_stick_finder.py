@@ -12,10 +12,10 @@ from src.extraction.item_extraction import filter_by_size
 class BlueStickFinder:
     '''Locates blue sticks that are inserted into center of plants.'''
     
-    def __init__(self, stick_length, stick_diameter):
+    def __init__(self, min_stick_part_size, max_stick_part_size):
         '''Constructor.  Sizes should be in centimeters.'''
-        self.stick_length = stick_length
-        self.stick_diameter = stick_diameter
+        self.min_stick_part_size = min_stick_part_size
+        self.max_stick_part_size = max_stick_part_size
     
     def locate(self, geo_image, image, marked_image):
         '''Find possible blue sticks in image and return list of rotated bounding box instances.''' 
@@ -44,10 +44,8 @@ class BlueStickFinder:
                 # Show rectangles using bounding box.
                 draw_rect(marked_image, rectangle, (255,255,255), thickness=1)
         
-        # Remove any rectangles that couldn't be a plant based off specified size.
-        min_stick_size = self.stick_diameter * 0.75 # looking straight down on it
-        max_stick_size = self.stick_length * 1.25 # laying flat on the ground
-        filtered_rectangles = filter_by_size(bounding_rectangles, geo_image.resolution, min_stick_size, max_stick_size, enforce_min_on_w_and_h=True)
+        # Remove any rectangles that couldn't be a stick part based off specified size.
+        filtered_rectangles = filter_by_size(bounding_rectangles, geo_image.resolution, self.min_stick_part_size, self.max_stick_part_size, enforce_min_on_w_and_h=True)
         
         if ImageWriter.level <= ImageWriter.DEBUG:
             # Debug save intermediate images
