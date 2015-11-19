@@ -29,7 +29,8 @@ class SegmentPart:
         
 class RecursiveSplitPlantFilter:
     
-    def __init__(self, code_spacing, plant_spacing):
+    def __init__(self, code_spacing, plant_spacing, lateral_ps=1, projection_ps=1,
+                 closeness_ps=1, stick_multiplier=2, leaf_multiplier=1.5):
         '''Spacing distances (in centimeters) are expected values'''
         self.expected_code_spacing = code_spacing
         self.expected_plant_spacing = plant_spacing
@@ -42,9 +43,11 @@ class RecursiveSplitPlantFilter:
         self.num_created_because_no_valid_plants = 0
         
         # Scales to weight the importance of different penalties
-        self.lateral_penalty_scale = 1
-        self.projection_penalty_scale = 1
-        self.closeness_penalty_scale = 1
+        self.lateral_penalty_scale = lateral_ps
+        self.projection_penalty_scale = projection_ps
+        self.closeness_penalty_scale = closeness_ps
+        self.stick_multiplier = max(1, stick_multiplier)
+        self.leaf_multiplier = max(1, leaf_multiplier)
         
     def locate_actual_plants_in_segment(self, possible_plants, whole_segment):
     
@@ -273,8 +276,8 @@ class RecursiveSplitPlantFilter:
             plant_component_types = [plant['item_type']]
         contains_blue_stick = 'stick_part' in plant_component_types
         contains_leaf = 'leaf' in plant_component_types
-        blue_stick_multiplier = 2 if contains_blue_stick else 1
-        leaf_multiplier = 1.5 if contains_leaf else 1
+        blue_stick_multiplier = self.stick_multiplier if contains_blue_stick else 1
+        leaf_multiplier = self.leaf_multiplier if contains_leaf else 1
         plant_part_confidence = 1 * blue_stick_multiplier * leaf_multiplier
             
         return plant_part_confidence

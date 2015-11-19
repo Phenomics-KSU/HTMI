@@ -3,13 +3,14 @@
 import sys
 import math
 import copy
+import itertools
 
 # OpenCV imports
 import cv2
 import numpy as np
 
 # Project imports
-from src.util.image_utils import rotated_to_regular_rect, rectangle_corners
+from src.util.image_utils import rectangle_corners
 from src.extraction.item_extraction import calculate_pixel_position, calculate_position_pixel
 from src.processing.item_processing import position_difference
 
@@ -93,9 +94,10 @@ def merge_clusters(c1, c2):
     
     merged_rect = merge_corner_rectangles([c1['rect'], c2['rect']])
     merged_items = c1.get('items', [c1]) + c2.get('items', [c2])
-    return {'rect':merged_rect, 'items':merged_items}
+    merged_item_center = corner_rect_center(merged_rect)
+    return {'rect':merged_rect, 'items':merged_items, 'rect_center':merged_item_center}
 
-def cluster_geo_image_items(geo_image, segment, max_plant_size):
+def cluster_geo_image_items(geo_image, segment, max_plant_size, max_plant_part_distance):
     # Merge items into possible plants, while referencing rectangle off global coordinates so we can
     # compare rectangles between multiple images.
     leaves = [{'item_type':'leaf', 'rect':rect_to_global(rect, geo_image)} for rect in geo_image.items['leaves']]
@@ -105,31 +107,29 @@ def cluster_geo_image_items(geo_image, segment, max_plant_size):
         plant_parts = remove_plant_parts_close_to_code(plant_parts, segment.start_code, 0.04)
     else:
         plant_parts = leaves + stick_parts
-    geo_image_possible_plants = cluster_rectangle_items(plant_parts, max_plant_size*0.5, max_plant_size)
+    geo_image_possible_plants = cluster_rectangle_items(plant_parts, max_plant_part_distance, max_plant_size)
     geo_image.items['possible_plants'] = geo_image_possible_plants
     return geo_image_possible_plants
 
 def cluster_rectangle_items(items, max_spacing, max_size):
     ''''''
     clusters = copy.copy(items)
+
+    for cluster in clusters:
+        cluster['rect_center'] = corner_rect_center(cluster['rect'])
+    
     while True:
-        closest_clusters = None
-        closest_spacing = sys.float_info.max
-        for cluster in clusters:
-            for other_cluster in clusters:
-                if cluster is other_cluster:
-                    continue # don't compare a cluster to itself
-                cluster_spacing = distance_between_corner_rects(cluster['rect'], other_cluster['rect'])
-                if cluster_spacing < closest_spacing:
-                    closest_clusters = (cluster, other_cluster)
-                    closest_spacing = cluster_spacing
+
+        closest_clusters, closest_spacing = find_closest_pair(clusters)
     
         if closest_clusters is None:
             break # clustered everything together
-    
-        if closest_spacing > max_spacing:
-            break # everything too far apart to cluster any more.
-    
+
+        #if closest_spacing > max_spacing:
+        #    ????
+        #    if len(closest_clusters[0].get('items',[])) < 2 or len(closest_clusters[1].get('items',[])) < 2:
+        #        break # everything too far apart to cluster any more.
+
         new_cluster = merge_clusters(*closest_clusters)
     
         new_width, new_height = corner_rectangle_size(new_cluster['rect'])
@@ -141,6 +141,21 @@ def cluster_rectangle_items(items, max_spacing, max_size):
         clusters.append(new_cluster)
         
     return clusters
+
+def find_closest_pair(clusters):
+
+    closest_clusters = None
+    closest_spacing = sys.float_info.max
+    for k, cluster in enumerate(clusters):
+        for other_cluster in itertools.islice(clusters, k+1, None):
+            dx = cluster['rect_center'][0] - other_cluster['rect_center'][0]
+            dy = cluster['rect_center'][1] - other_cluster['rect_center'][1]
+            cluster_spacing = math.sqrt(dx*dx + dy*dy)
+            if cluster_spacing < closest_spacing:
+                closest_clusters = (cluster, other_cluster)
+                closest_spacing = cluster_spacing
+            
+    return closest_clusters, closest_spacing
 
 def filter_out_noise(possible_plants):
     # Filter out anything that's most likely noise.  Worse case there's only one image of a blue stick
