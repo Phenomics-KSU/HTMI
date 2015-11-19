@@ -30,11 +30,11 @@ def stage3_extract_plant_parts(**args):
     input_filepath = args.pop('input_filepath')
     out_directory = args.pop('output_directory')
     pad = float(args.pop('pad'))
+    special_pad = float(args.pop('special_pad'))
     min_leaf_size = float(args.pop('min_leaf_size'))
     max_leaf_size = float(args.pop('max_leaf_size'))
     min_stick_part_size = float(args.pop('min_stick_part_size'))
     max_stick_part_size = float(args.pop('max_stick_part_size'))
-    special_pad = float(args.pop('special_pad'))
     use_marked_image = args.pop('marked_image').lower() == 'true'
     debug_start = args.pop('debug_start')
     debug_stop = args.pop('debug_stop')
@@ -47,7 +47,7 @@ def stage3_extract_plant_parts(**args):
     
     if len(rows) == 0 or len(geo_images) == 0:
         print "No rows or no geo images could be loaded from {}".format(input_filepath)
-        sys.exit(ExitReason.no_rows)
+        return ExitReason.no_rows
     
     ImageWriter.level = ImageWriter.NORMAL
     
@@ -74,9 +74,9 @@ def stage3_extract_plant_parts(**args):
     
     for segment in all_segments:
         if segment.is_special:
-            segment.ewns = calculate_special_segment_ewns(segment, special_pad)
+            segment.lrud = calculate_special_segment_lrud(segment, special_pad)
         else:
-            segment.ewns = calculate_segment_ewns(segment, pad)
+            segment.lrud = calculate_segment_lrud(segment, pad)
     
     num_matched = [] # keep track of how many segments each image maps to.
     num_leaves = [] # how many leaves are in each processed image
@@ -88,9 +88,9 @@ def stage3_extract_plant_parts(**args):
             num_images_without_path += 1
             continue
         
-        # Check if image east/west/north/south (ewns) overlaps with any segments.
-        image_ewns = calculate_image_ewns(geo_image)
-        overlapping_segments = [seg for seg in all_segments if is_overlapping_segment(image_ewns, seg)]
+        # Check if image east/west/north/south (lrud) overlaps with any segments.
+        image_lrud = calculate_image_lrud(geo_image)
+        overlapping_segments = [seg for seg in all_segments if is_overlapping_segment(image_lrud, seg)]
         
         if len(overlapping_segments) == 0:
             num_images_not_in_segment += 1
@@ -133,7 +133,7 @@ def stage3_extract_plant_parts(**args):
     pickle_results(dump_filename, out_directory, rows)
     
     # Write arguments out to file for archiving purposes.
-    write_args_to_file("stage3_args.csv", out_directory, vars(args_copy))
+    write_args_to_file("stage3_args.csv", out_directory, args_copy)
     
 if __name__ == '__main__':
     '''Extract out possible plant parts to be clustered in next stage.'''

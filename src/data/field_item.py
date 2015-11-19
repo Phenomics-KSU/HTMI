@@ -8,9 +8,9 @@ class FieldItem(object):
                   image_path='', parent_image_filename='', bounding_rect=None, number_within_field=0, number_within_row=0):
         '''Constructor.'''
         self.name = name # identifier 
-        self._position = position # 3D position of item in either local ENU frame or UTM
-        self._field_position = field_position # 3D position relative to first field item. axes are in direction of row, range, altitude.
-        self.zone = zone # UTM zone (e.g. 14S). Should be '--' if not being used.
+        self._position = position # 3D position of item in UTM frame.
+        self.zone = zone # UTM zone (e.g. 14S)
+        self._field_position = field_position # 3D position relative to first field item and y axis runs along ranges. axes are in direction of row, range, altitude.
         self._row = row # The row the item is found in. First row is #1.  If zero or negative then doesn't belong to a row.
         self._range = range_grid # The range the item is found in.  If row is the 'x' value then the range is the 'y' value and the units are dimensionless.
         self._number_within_field = number_within_field # Number of item within entire field.  
@@ -36,10 +36,10 @@ class FieldItem(object):
         if other_item.type != self.type:
             raise ValueError("Can't add reference to different type.")
         self.other_items.append(other_item)
-        self._update_fields()
+        self.refresh_fields()
         
-    def _update_fields(self):
-        '''Update fields that need to change when a new reference is added'''
+    def refresh_fields(self):
+        '''Update fields that need to change when a new reference is added or changed'''
         self.position = np.mean([self._position] + [ref.position for ref in self.other_items], axis=0)
         self.field_position = np.mean([self._field_position] + [ref.field_position for ref in self.other_items], axis=0)   
     

@@ -23,6 +23,9 @@ def export_results(items, rows, out_filepath):
                         'northing',
                         'altitude',
                         'zone',
+                        'field_x',
+                        'field_y',
+                        'field_z',
                         'cropped_image_file_name',
                         'parent_image_file_name',
                         'bound_x_pix',
@@ -77,17 +80,20 @@ def export_results(items, rows, out_filepath):
                            item.range,
                            item.number_within_field,
                            item.number_within_row,
-                           item.position[0],
-                           item.position[1],
-                           item.position[2],
+                           '{:3f}'.format(item.position[0]),
+                           '{:3f}'.format(item.position[1]),
+                           '{:3f}'.format(item.position[2]),
                            item.zone,
+                           '{:3f}'.format(item.field_position[0]),
+                           '{:3f}'.format(item.field_position[1]),
+                           '{:3f}'.format(item.field_position[2]),
                            os.path.splitext(os.path.split(item.image_path)[1])[0],
                            os.path.splitext(item.parent_image_filename)[0],
-                           bound_x_pix,
-                           bound_y_pix,
-                           bound_width_pix,
-                           bound_height_pix,
-                           bound_rotation
+                           int(bound_x_pix),
+                           int(bound_y_pix),
+                           int(bound_width_pix),
+                           int(bound_height_pix),
+                           int(bound_rotation)
                            ])
 
     return out_filepath

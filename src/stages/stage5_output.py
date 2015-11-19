@@ -14,9 +14,11 @@ import numpy as np
 # Project imports
 from src.util.stage_io import unpickle_stage4_output, write_args_to_file
 from src.stages.exit_reason import ExitReason
-from src.processing.item_processing import calculate_field_positions, all_segments_from_rows
+from src.util.parsing import parse_survey_file
+from src.processing.item_processing import calculate_field_positions_and_range, all_segments_from_rows
 from src.processing.export_results import export_group_segments, export_results
-from src.util.numbering import number_serpentine, assign_range_number
+from src.util.numbering import number_serpentine
+from src.util.survey import *
 
 if __name__ == '__main__':
     '''Output results.'''
@@ -24,14 +26,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='''Output results.''')
     parser.add_argument('input_filepath', help='pickled file from stage 4.')
     parser.add_argument('output_directory', help='where to write output files')
+    parser.add_argument('-s', dest='survey_filepath', default='none', help='File containing hand-surveyed items.')
+    parser.add_argument('-c', dest='convert_coords', default='true', help='If true then will convert all coordinates to match survey file. Default true.')
     
     args = parser.parse_args()
     
     # convert command line arguments
     input_filepath = args.input_filepath
     out_directory = args.output_directory
+    survey_filepath = args.survey_filepath
+    convert_coords = args.convert_coords.lower() == 'true'
 
-    # Unpickle rows.
     rows = unpickle_stage4_output(input_filepath)
     
     print 'Loaded {} rows'.format(len(rows))
@@ -45,9 +50,13 @@ if __name__ == '__main__':
     
     print 'Found {} items in rows.'.format(len(items))
     
-    assign_range_number(items, rows)
+    codes = [item for item in items if 'code' in item.type.lower()]
+    plants = [item for item in items if 'plant' in item.type.lower()]
     
-    calculate_field_positions(items)
+    print '{} are codes and {} are plants.'.format(len(codes), len(plants))
+    
+    # Now that plants are found calculate their field coordinates based on codes.
+    calculate_field_positions_and_range(rows, codes, plants)
     
     # Shouldn't be necessary, but do it anyway.
     print 'Sorting items by number within field.'
@@ -58,7 +67,21 @@ if __name__ == '__main__':
     
     if not os.path.exists(out_directory):
         os.makedirs(out_directory)
-    
+        
+    if survey_filepath != 'none':
+        if not os.path.exists(survey_filepath):
+            print "Survey file doesn't exist {}".format(survey_filepath)
+            sys.exit(ExitReason.bad_arguments)
+        else:
+            survey_items = parse_survey_file(survey_filepath)
+            if convert_coords:
+                print "Converting coordinates"
+                east_offset, north_offset = calculate_east_north_offsets(items, survey_items)
+                convert_coordinates(items, east_offset, north_offset)
+                
+            # Now that items are in same coordinates run accuracy checks
+            run_survey_verification(items, survey_items)
+            
     # Write everything out to CSV file to be imported into database.
     all_results_filename = time.strftime('results_all-%Y%m%d-%H%M%S.csv')
     all_results_filepath = os.path.join(out_directory, all_results_filename)
@@ -76,8 +99,7 @@ if __name__ == '__main__':
     # And output just codes to another file.
     just_codes_results_filename = time.strftime("results_just_codes-%Y%m%d-%H%M%S.csv")
     just_codes_results_filepath = os.path.join(out_directory, just_codes_results_filename)
-    just_codes = [item for item in items if 'code' in item.type.lower()]
-    export_results(just_codes, rows, just_codes_results_filepath)
+    export_results(codes, rows, just_codes_results_filepath)
     print "Exported just code results to " + just_codes_results_filepath
 
     # Output group segments to a file.

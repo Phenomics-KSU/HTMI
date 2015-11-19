@@ -230,15 +230,15 @@ def calculate_projection_to_nearest_row(codes, rows):
     codes_with_projections = []
     
     # Order codes and rows from left to right
-    codes = sorted(codes, key=lambda c: c.position[0])
-    rows = sorted(rows, key=lambda r: r.center_position[0])
+    codes = sorted(codes, key=lambda c: c.field_position[0])
+    rows = sorted(rows, key=lambda r: r.center_field_position[0])
     
     for row in rows:
         row.ordered_items = [row.start_code, row.end_code]
     
     for code in codes:
         
-        rows_with_distance_to_code = [(row, abs(row.center_position[0] - code.position[0])) for row in rows]
+        rows_with_distance_to_code = [(row, abs(row.center_field_position[0] - code.field_position[0])) for row in rows]
         sorted_rows_with_distance_to_code = sorted(rows_with_distance_to_code, key=lambda r: r[1])
         closest_rows_to_code = [row[0] for row in sorted_rows_with_distance_to_code[:4]]
         
@@ -250,7 +250,7 @@ def calculate_projection_to_nearest_row(codes, rows):
             closest_beneath = None
             closest_after = None
             for item in row.ordered_items:
-                if code.position[1] > item.position[1]:
+                if code.field_position[1] > item.field_position[1]:
                     closest_beneath = item
                 else:
                     closest_after = item
@@ -259,7 +259,7 @@ def calculate_projection_to_nearest_row(codes, rows):
             if closest_beneath is None or closest_after is None:
                 continue # not in this row for sure
 
-            distance_to_code, _ = lateral_and_projection_distance_2d(code.position, closest_beneath.position, closest_after.position)
+            distance_to_code, _ = lateral_and_projection_distance_2d(code.field_position, closest_beneath.field_position, closest_after.field_position)
             distance_to_code = abs(distance_to_code)
             
             if distance_to_code < min_distance:
@@ -269,7 +269,7 @@ def calculate_projection_to_nearest_row(codes, rows):
                 
         if closest_row is not None and min_distance < 3: # TODO remove hard-coded value
             
-            _, row_projection = lateral_and_projection_distance_2d(code.position, row.start_code.position, row.end_code.position)
+            _, row_projection = lateral_and_projection_distance_2d(code.field_position, row.start_code.field_position, row.end_code.field_position)
             
             closest_item_idx = closest_row.ordered_items.index(closest_after_in_closest_row)
             closest_row.ordered_items.insert(closest_item_idx, code)
@@ -290,8 +290,10 @@ def create_segments(codes_with_projections, rows):
         codes_in_row = [code for code in codes_with_projections if code.code.row == row.number]
         if len(codes_in_row) == 0:
             print "No codes in row {}. Creating pseudo group code at start.".format(row.number)
-            pseudo_code1 = GroupCode(name='PS{}'.format(row.number), position=row.start_code.position, zone=row.start_code.zone, row=row.number)
-            pseudo_code2 = GroupCode(name='PE{}'.format(row.number), position=row.end_code.position, zone=row.end_code.zone, row=row.number)
+            pseudo_code1 = GroupCode(name='PS{}'.format(row.number), position=row.start_code.position, 
+                                     field_position=row.start_code.field_position, zone=row.start_code.zone, row=row.number)
+            pseudo_code2 = GroupCode(name='PE{}'.format(row.number), position=row.end_code.position,
+                                     field_position=row.end_code.field_position, zone=row.end_code.zone, row=row.number)
             codes_in_row = [(pseudo_code1, 0), (pseudo_code2, 1)]
             
         # Sort codes by projection distance.

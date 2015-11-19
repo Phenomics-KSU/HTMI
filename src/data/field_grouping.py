@@ -36,10 +36,10 @@ class Row(object):
         return [s for s in self.segments if s.is_special]
     
     @property
-    def center_position(self):
-        avg_x = (self.start_code.position[0] + self.end_code.position[0]) / 2.0
-        avg_y = (self.start_code.position[1] + self.end_code.position[1]) / 2.0
-        avg_z = (self.start_code.position[2] + self.end_code.position[2]) / 2.0
+    def center_field_position(self):
+        avg_x = (self.start_code.field_position[0] + self.end_code.field_position[0]) / 2.0
+        avg_y = (self.start_code.field_position[1] + self.end_code.field_position[1]) / 2.0
+        avg_z = (self.start_code.field_position[2] + self.end_code.field_position[2]) / 2.0
         return (avg_x, avg_y, avg_z)
     
 class PlantGroupSegment(object):

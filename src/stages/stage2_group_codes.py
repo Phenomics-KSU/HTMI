@@ -7,7 +7,7 @@ import os
 from src.util.grouping import *
 from src.util.stage_io import unpickle_stage1_output, pickle_results, write_args_to_file
 from src.util.parsing import parse_code_listing_file, parse_code_modifications_file
-from src.processing.item_processing import merge_items, apply_code_modifications
+from src.processing.item_processing import merge_items, apply_code_modifications, calculate_field_positions_and_range
 from src.stages.exit_reason import ExitReason
 
 def stage2_group_codes(**args):
@@ -81,7 +81,7 @@ def stage2_group_codes(**args):
         rows, field_passes = create_rows_and_field_passes_by_pass_codes(grouped_row_codes, field_direction)
         
     else:
-        print "Invalid row lobeling scheme."
+        print "Invalid row labeling scheme."
         return ExitReason.bad_arguments
     
     if len(rows) == 0:
@@ -89,6 +89,11 @@ def stage2_group_codes(**args):
         return ExitReason.no_rows
     
     print sorted([r.number for r in rows], key=lambda r: r)
+    
+    print "Calculating field positions."
+    calculate_field_positions_and_range(rows, merged_codes, all_codes, geo_images)
+    for code in merged_codes:
+        code.refresh_fields()
     
     print "Calculating projections to nearest row"
     codes_with_projections = calculate_projection_to_nearest_row(group_codes + single_codes, rows)

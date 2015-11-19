@@ -288,26 +288,6 @@ def projection_to_position_2d(projection, a, b):
     y_offset = projection * a_to_b_unit[1]
     
     return (a[0] + x_offset, a[1] + y_offset)
-
-def calculate_field_positions(items):
-    
-    first_group_code = None
-    for item in items:
-        if item.type.lower() == 'groupcode':
-            first_group_code = item
-            break
-        
-    if first_group_code is None:
-        print "No group codes. Exiting"
-        sys.exit(1)
-                
-    first_position = first_group_code.position
-    
-    for item in items:
-        rel_x = item.position[0] - first_position[0]
-        rel_y = item.position[1] - first_position[1]
-        rel_z = item.position[2] - first_position[2]
-        item.field_position = (rel_x, rel_y, rel_z)
         
 def apply_code_modifications(modifications, geo_images, all_codes, output_directory):
  
@@ -356,3 +336,61 @@ def apply_code_modifications(modifications, geo_images, all_codes, output_direct
             print "Removed {} references to code id {} from geo images".format(num_refs_removed, id_to_delete)
                     
     return geo_images, all_codes
+
+def calculate_field_positions_and_range(rows, base_items, items_to_calculate, geo_images=None):
+    
+    # use field angle to calculate range for each item.
+    field_angle = np.mean([row.angle for row in rows])
+    
+    # How much we need to rotate East-North so that 'y' runs along rows.
+    correction_angle = math.radians(90) - field_angle 
+    
+    # Find min/max of rotated coordinate so that after rotating the shift will be correct.
+    rotated_x = []
+    rotated_y = []
+    base_z = []
+    for item in base_items:
+        x, y, z = rotate2d(item.position, correction_angle)
+        rotated_x.append(x)
+        rotated_y.append(y)
+        base_z.append(z)
+    min_x = min(rotated_x)
+    min_y = min(rotated_y)
+    min_z = min(base_z)
+    
+    # How much to shift regular positions after they've been rotated.
+    field_shift = (min_x, min_y, min_z)
+
+    # Now go through and assign field positions to each item.
+    for item in items_to_calculate:
+        item.field_position = rotate_and_shift(item.position, field_shift, correction_angle)
+        
+        # scale range so that there are around 5 plants in each unit.
+        # TODO use actual plant spacing here instead of hardcoding scale.
+        # Add one to reference off 1 like row number.
+        range_units_per_meter = 0.25;
+        item.range = int(item.field_position[1] * range_units_per_meter) + 1
+        
+    if geo_images is not None:
+        for geo_image in geo_images:
+            geo_image.field_position = rotate_and_shift(geo_image.position, field_shift, correction_angle)
+            geo_image.top_left_field_position = rotate_and_shift(geo_image.top_left_position, field_shift, correction_angle)
+            geo_image.top_right_field_position = rotate_and_shift(geo_image.top_right_position, field_shift, correction_angle)
+            geo_image.bottom_right_field_position = rotate_and_shift(geo_image.bottom_right_position, field_shift, correction_angle)
+            geo_image.bottom_left_field_position = rotate_and_shift(geo_image.bottom_left_position, field_shift, correction_angle)
+            
+def rotate2d(position, angle_rad):
+    
+    rotated_x = position[0] * math.cos(angle_rad) - position[1] * math.sin(angle_rad)
+    rotated_y = position[0] * math.sin(angle_rad) + position[1] * math.cos(angle_rad)
+    return rotated_x, rotated_y, position[2]
+            
+def rotate_and_shift(position, shift, angle_rad):
+    
+    x, y, z = rotate2d(position, angle_rad)
+    x -= shift[0]
+    y -= shift[1]
+    z -= shift[2]
+    return (x, y, z)
+            
+        

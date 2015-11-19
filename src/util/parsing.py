@@ -33,8 +33,9 @@ def parse_geo_file(image_geo_file, provided_resolution, camera_rotation):
             except (IndexError, ValueError) as e:
                 print 'Bad line: {}'.format(line) 
                 raise
-
-            geo_image = GeoImage(image_name, image_time, (x, y, z), zone, heading, provided_resolution, camera_rotation)
+                 
+            geo_image = GeoImage(file_name=image_name, image_time=image_time, position=(x, y, z), zone=zone,
+                                 heading_degrees=heading, resolution=provided_resolution, camera_rotation_degrees=camera_rotation)
             images.append(geo_image)
             
     return images
@@ -105,18 +106,25 @@ def parse_code_modifications_file(code_modifications_filepath):
             
     return code_modifications
 
-def parse_updated_items(updated_items_filepath):
-    
-    updated_all_items = []
-    updated_missing_items = []
-    updated_none_items = []
-    
-    if updated_items_filepath != 'none':
-        if os.path.exists(updated_items_filepath):
-            updated_all_items, updated_missing_items, updated_none_items = parse_updated_fix_file(updated_items_filepath)
-            print "From updated fix file parsed: "
-            print "All {} missing {} none {}".format(len(updated_all_items), len(updated_missing_items), len(updated_none_items))
-        else:
-            print "Updated file file {} does not exist.".format(updated_items_filepath)
-        
-    return updated_all_items, updated_missing_items, updated_none_items
+def parse_survey_file(survey_filepath):
+    '''Parse file and return named tuple for each surveyed code.'''
+    SurveyItem = namedtuple('SurveyItem', 'name position')
+    survey_items = []
+    with open(survey_filepath, 'r') as survey_file:
+        lines = survey_file.readlines()
+        for line_index, line in enumerate(lines):
+            if line.isspace():
+                continue
+            fields = [field.strip() for field in line.split(',')]
+            if len(fields) == 0:
+                continue
+            try:
+                easting = float(fields[3])
+                northing = float(fields[4])
+                name = fields[5]
+                survey_items.append(SurveyItem(name, (easting, northing)))
+            except (IndexError, ValueError) as e:
+                print 'Bad line: {}. Exception {}'.format(line, e) 
+                continue
+            
+    return survey_items

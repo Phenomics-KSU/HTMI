@@ -6,6 +6,7 @@ import pickle
 import csv
 import datetime
 import copy
+from collections import namedtuple
 
 # OpenCV imports
 import cv2
@@ -70,24 +71,36 @@ def debug_draw_plants_in_images(geo_images, possible_plants, actual_plants, out_
     if not os.path.exists(image_out_directory):
         os.makedirs(image_out_directory)
         
-    print "Creating out debug images"
+    print "Writing out debug images"
         
-    debug_images = []
     # Limit the max number of images to keep from overfilling memory.
-    debug_geo_images = copy.copy(geo_images[:20])
+    set_num = 0
+    set_increment = 20
+    while set_num < len(geo_images):
+        debug_geo_images = copy.copy(geo_images[set_num : set_num + set_increment])
+        debug_draw_plants_in_images_subset(debug_geo_images, possible_plants, actual_plants, image_out_directory)
+        set_num += set_increment
+        sys.stdout.write('.')
+
+def debug_draw_plants_in_images_subset(debug_geo_images, possible_plants, actual_plants, image_out_directory):
+    
+    debug_images = []
+    DebugImage = namedtuple('DebugImage', 'image existed')
     for geo_image in debug_geo_images:
         if hasattr(geo_image, 'debug_filepath'):
             path = geo_image.debug_filepath
+            already_existed = True
         else:
             path = geo_image.file_path
-        debug_images.append(cv2.imread(path, cv2.CV_LOAD_IMAGE_COLOR))
+            already_existed = False
+        debug_images.append(DebugImage(cv2.imread(path, cv2.CV_LOAD_IMAGE_COLOR, already_existed)))
     for item in possible_plants:
         from random import randint
-        item_color = (randint(0, 255), randint(0, 255), randint(0, 255))
+        item_color = (randint(0, 255), randint(0, 100), randint(0, 255))
         for k, geo_image in enumerate(debug_geo_images):
             for ext_item in [item] + item.get('items',[]):
                 image_rect = rect_to_image(ext_item['rect'], geo_image)
-                draw_rect(debug_images[k], image_rect, item_color, thickness=2)
+                draw_rect(debug_images[k].image, image_rect, item_color, thickness=2)
             
     for plant in actual_plants:
         for ref in plant.all_refs:
@@ -98,13 +111,12 @@ def debug_draw_plants_in_images(geo_images, possible_plants, actual_plants, out_
                 debug_img_index = geo_image_filenames.index(ref.parent_image_filename)
             except ValueError:
                 continue
-            debug_img = debug_images[debug_img_index]
-            draw_rect(debug_img, ref.bounding_rect, (0, 255, 0), thickness=3)
-            
-    print "Writing out debug images"
+            debug_img = debug_images[debug_img_index].image
+            draw_rect(debug_img, ref.bounding_rect, (0, 255, 0), thickness=4)
             
     debug_filepaths = [os.path.join(image_out_directory, postfix_filename(geo_image.file_name, 'marked')) for geo_image in debug_geo_images]
-    for k, (image, filepath) in enumerate(zip(debug_images, debug_filepaths)):
-        cv2.imwrite(filepath, image)
+    for k, (debug_image, filepath) in enumerate(zip(debug_images, debug_filepaths)):
+        if not debug_image.existed:
+            debug_image.image = cv2.resize(debug_image.image, (0,0), fx=0.25, fy=0.25) 
+        cv2.imwrite(filepath, debug_image.image)
         debug_geo_images[k].debug_filepath = filepath
-
