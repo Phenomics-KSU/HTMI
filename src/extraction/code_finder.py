@@ -16,10 +16,11 @@ from src.data.field_item import GroupCode, SingleCode, RowCode
 
 class CodeFinder:
     '''Locates and decodes QR codes.'''
-    def __init__(self, qr_min_size, qr_max_size):
+    def __init__(self, qr_min_size, qr_max_size, missed_code_finder=None):
         '''Constructor.  QR size is an estimate for searching.'''
         self.qr_min_size = qr_min_size
         self.qr_max_size = qr_max_size
+        self.missed_code_finder = missed_code_finder
     
     def locate(self, geo_image, image, marked_image):
         '''Find QR codes in image and decode them.  Return list of FieldItems representing valid QR codes.''' 
@@ -64,6 +65,10 @@ class CodeFinder:
                     print 'WARNING: Invalid QR data found ' + qr_data[0]
                 else:
                     qr_items.append(qr_code)
+                    
+            elif self.missed_code_finder is not None:
+                # Scan wasn't successful so tag this rectangle for later analysis.
+                self.missed_code_finder.add_possibly_missed_code(rectangle, geo_image)
                 
             if marked_image is not None:
                 # Show success/failure using colored bounding box

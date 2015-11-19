@@ -13,6 +13,7 @@ from src.util.stage_io import pickle_results, write_args_to_file
 from src.util.image_writer import ImageWriter
 from src.util.parsing import parse_geo_file
 from src.extraction.code_finder import CodeFinder
+from src.extraction.missed_code_finder import MissedCodeFinder
 from src.processing.item_processing import process_geo_image, merge_items, get_subset_of_geo_images
 from exit_reason import ExitReason
     
@@ -93,7 +94,8 @@ def stage1_extract_codes(**args):
         print "No images match up with any geo images. Exiting."
         return ExitReason.no_geo_images
 
-    code_finder = CodeFinder(code_min_size, code_max_size)
+    missed_code_finder = MissedCodeFinder()
+    code_finder = CodeFinder(code_min_size, code_max_size, missed_code_finder)
     
     ImageWriter.level = ImageWriter.NORMAL
     
@@ -117,6 +119,14 @@ def stage1_extract_codes(**args):
         answer = raw_input("\nType y to save results or anything else to quit: ").strip()
         if answer.lower() != 'y':
             return ExitReason.user_interrupt
+        
+    # Write possibly missed codes out to separate directory
+    missed_codes_out_directory = os.path.join(out_directory, 'missed_codes/')
+    if not os.path.exists(missed_codes_out_directory):
+        os.makedirs(missed_codes_out_directory)
+        
+    print "Writing out missed codes"
+    missed_code_finder.write_out_missed_codes(codes, missed_codes_out_directory)
   
     dump_filename = "stage1_output_{}_{}_{}.s1".format(postfix_id, int(geo_images[0].image_time), int(geo_image.image_time))
     print "Serializing {} geo images and {} codes to {}.".format(len(geo_images), len(codes), dump_filename)
