@@ -11,9 +11,8 @@ def export_results(items, rows, out_filepath):
         # Write out header
         writer.writerow([
                         'item_type',
-                        'unique_id',
+                        'id',
                         'alternate_id',
-                        'code_data',
                         'planting_direction',
                         'row',
                         'range',
@@ -39,19 +38,12 @@ def export_results(items, rows, out_filepath):
             
             has_group = hasattr(item, 'group') and item.group is not None
             
-            unique_id = ''
-            alternate_id = ''
             if has_group:
-                unique_id = item.group.id
+                item_id = item.group.id
                 alternate_id = item.group.alternate_id
-                
-            code_data = ''
-            if 'code' in item.type.lower():
-                code_data = item.name 
-
-            # TODO cleanup
-            #if hasattr(item, 'row_number'):
-            #    item.row = item.row_number
+            else:
+                item_id = item.name 
+                alternate_id = ''
 
             # Row properties
             row_direction = 'N/A'
@@ -72,21 +64,20 @@ def export_results(items, rows, out_filepath):
                 
             writer.writerow([
                            item.type,
-                           unique_id,
+                           item_id,
                            alternate_id,
-                           code_data,
                            row_direction,
                            item.row,
                            item.range,
                            item.number_within_field,
                            item.number_within_row,
-                           '{:3f}'.format(item.position[0]),
-                           '{:3f}'.format(item.position[1]),
-                           '{:3f}'.format(item.position[2]),
+                           '{:.3f}'.format(item.position[0]),
+                           '{:.3f}'.format(item.position[1]),
+                           '{:.3f}'.format(item.position[2]),
                            item.zone,
-                           '{:3f}'.format(item.field_position[0]),
-                           '{:3f}'.format(item.field_position[1]),
-                           '{:3f}'.format(item.field_position[2]),
+                           '{:.3f}'.format(item.field_position[0]),
+                           '{:.3f}'.format(item.field_position[1]),
+                           '{:.3f}'.format(item.field_position[2]),
                            os.path.splitext(os.path.split(item.image_path)[1])[0],
                            os.path.splitext(item.parent_image_filename)[0],
                            int(bound_x_pix),

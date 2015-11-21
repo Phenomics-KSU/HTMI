@@ -11,7 +11,7 @@ from src.util.stage_io import debug_draw_plants_in_images
 from src.stages.exit_reason import ExitReason
 from src.processing.item_processing import all_segments_from_rows
 from src.util.clustering import cluster_rectangle_items, cluster_geo_image_items
-from src.util.clustering import corner_rect_center, filter_out_noise
+from src.util.clustering import corner_rect_center, filter_out_noise, merge_corner_rectangles
 from src.util.plant_localization import RecursiveSplitPlantFilter, ClosestSinglePlantFilter
 from src.extraction.item_extraction import extract_global_plants_from_images
 
@@ -62,9 +62,6 @@ def stage4_locate_plants(**args):
     for seg_num, segment in enumerate(all_segments):
         
         print "Processing segment {} [{}/{}] with {} images".format(segment.start_code.name, seg_num+1, len(all_segments), len(segment.geo_images))
-
-        #if seg_num != 16:
-        #    continue # debug break
     
         # Cluster together leaves and stick parts into possible plants
         possible_plants = []
@@ -75,26 +72,27 @@ def stage4_locate_plants(**args):
             else:
                 possible_plants += cluster_geo_image_items(geo_image, segment, max_plant_size, max_plant_part_distance)
                 
-            # write out period to show that images are being clustered
-            sys.stdout.write('.')
-                
         if len(possible_plants) == 0:
             print "Warning: segment {} has no associated images.".format(segment.start_code.name)
             continue
+        
+        # Remove small parts that didn't get clustered.
+        possible_plants = filter_out_noise(possible_plants)
 
         print "{} possible plants found between all images".format(len(possible_plants))
-
-        # Cluster together possible plants between multiple images.
-        global_max_plant_part_distance = min(2 * max_plant_part_distance, max_plant_size * 0.7)
-        possible_plants = cluster_rectangle_items(possible_plants, global_max_plant_part_distance, max_plant_size)
     
         print "clustered down to {} possible plants".format(len(possible_plants))
     
-        # Remove small parts that didn't get clustered.
-        possible_plants = filter_out_noise(possible_plants)
-    
+        # Find UTM positions of possible plants so that they can be easily compared between different images.
         for plant in possible_plants:  
-            px, py = corner_rect_center(plant['rect'])
+            stick_parts = [part for part in plant['items'] if part['item_type'] == 'stick_part']
+            if len(stick_parts) > 0:
+                # Use blue stick parts for position
+                positioning_rect = merge_corner_rectangles([part['rect'] for part in stick_parts])
+            else:
+                # No blue sticks so just use entire plant
+                positioning_rect = plant['rect']
+            px, py = corner_rect_center(positioning_rect)
             plant['position'] = (px, py, segment.start_code.position[2])
         
         if segment.is_special:

@@ -57,17 +57,28 @@ def merge_corner_rectangles(rectangles):
 
     return ((xmin, ymin), (xmin, ymax), (xmax, ymin), (xmax, ymax))
 
-def distance_between_corner_rects(r1, r2):
-    '''Return distance between rectangle centers.'''
+def distance_between_clusters(c1, c2):
+    '''Return smallest distance between rectangle corners in cluster rectangles.'''
 
-    r1x = np.mean([corner[0] for corner in r1])
-    r1y = np.mean([corner[1] for corner in r1])
-    r2x = np.mean([corner[0] for corner in r2])
-    r2y = np.mean([corner[1] for corner in r2])
-    
-    dx = r1x - r2x
-    dy = r1y - r2y
-    return math.sqrt(dx*dx + dy*dy)
+    smallest_dist = sys.float_info.max
+    for item in c1['items']:
+        for other_item in c2['items']:
+            dist = distance_between_corner_rects(item['rect'], other_item['rect'])
+            if dist < smallest_dist:
+                smallest_dist = dist
+            
+    return smallest_dist
+
+def distance_between_corner_rects(r1, r2):
+    '''Return smallest distance between rectangle corners.'''
+
+    dists = [] * 4
+    for k in range(4):
+        dx = r1[k][0] - r2[k][0]
+        dy = r1[k][1] - r2[k][1]
+        dists.append(math.sqrt(dx*dx + dy*dy))
+
+    return min(dists)
 
 def corner_rect_center(rect):
     '''Return center of rectangle.'''
@@ -93,10 +104,10 @@ def corner_rectangle_size(rect):
 def merge_clusters(c1, c2):
     
     merged_rect = merge_corner_rectangles([c1['rect'], c2['rect']])
-    merged_items = c1.get('items', [c1]) + c2.get('items', [c2])
+    merged_items = c1['items'] + c2['items']
     merged_item_center = corner_rect_center(merged_rect)
     return {'rect':merged_rect, 'items':merged_items, 'rect_center':merged_item_center}
-
+ 
 def cluster_geo_image_items(geo_image, segment, max_plant_size, max_plant_part_distance):
     # Merge items into possible plants, while referencing rectangle off global coordinates so we can
     # compare rectangles between multiple images.
@@ -114,9 +125,9 @@ def cluster_geo_image_items(geo_image, segment, max_plant_size, max_plant_part_d
 def cluster_rectangle_items(items, max_spacing, max_size):
     ''''''
     clusters = copy.copy(items)
-
+    
     for cluster in clusters:
-        cluster['rect_center'] = corner_rect_center(cluster['rect'])
+        cluster['items'] = [cluster]
     
     while True:
 
@@ -125,10 +136,8 @@ def cluster_rectangle_items(items, max_spacing, max_size):
         if closest_clusters is None:
             break # clustered everything together
 
-        #if closest_spacing > max_spacing:
-        #    ????
-        #    if len(closest_clusters[0].get('items',[])) < 2 or len(closest_clusters[1].get('items',[])) < 2:
-        #        break # everything too far apart to cluster any more.
+        if closest_spacing > max_spacing:
+            break # everything too far apart to cluster any more.
 
         new_cluster = merge_clusters(*closest_clusters)
     
@@ -148,9 +157,7 @@ def find_closest_pair(clusters):
     closest_spacing = sys.float_info.max
     for k, cluster in enumerate(clusters):
         for other_cluster in itertools.islice(clusters, k+1, None):
-            dx = cluster['rect_center'][0] - other_cluster['rect_center'][0]
-            dy = cluster['rect_center'][1] - other_cluster['rect_center'][1]
-            cluster_spacing = math.sqrt(dx*dx + dy*dy)
+            cluster_spacing = distance_between_clusters(cluster, other_cluster)
             if cluster_spacing < closest_spacing:
                 closest_clusters = (cluster, other_cluster)
                 closest_spacing = cluster_spacing
@@ -178,3 +185,4 @@ def remove_plant_parts_close_to_code(plant_parts, code, closest_dist):
             filtered_plant_parts.append(part)
 
     return filtered_plant_parts
+    

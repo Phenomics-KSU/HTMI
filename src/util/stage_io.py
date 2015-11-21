@@ -93,14 +93,17 @@ def debug_draw_plants_in_images_subset(debug_geo_images, possible_plants, actual
         else:
             path = geo_image.file_path
             already_existed = False
-        debug_images.append(DebugImage(cv2.imread(path, cv2.CV_LOAD_IMAGE_COLOR, already_existed)))
+        debug_images.append(DebugImage(cv2.imread(path, cv2.CV_LOAD_IMAGE_COLOR), already_existed))
     for item in possible_plants:
         from random import randint
         item_color = (randint(0, 255), randint(0, 100), randint(0, 255))
         for k, geo_image in enumerate(debug_geo_images):
             for ext_item in [item] + item.get('items',[]):
                 image_rect = rect_to_image(ext_item['rect'], geo_image)
-                draw_rect(debug_images[k].image, image_rect, item_color, thickness=2)
+                center, size, theta = image_rect
+                x, y = center
+                if x >= 0 and x < geo_image.width and y >= 0 and y < geo_image.height:
+                    draw_rect(debug_images[k].image, image_rect, item_color, thickness=2)
             
     for plant in actual_plants:
         for ref in plant.all_refs:
@@ -112,11 +115,13 @@ def debug_draw_plants_in_images_subset(debug_geo_images, possible_plants, actual
             except ValueError:
                 continue
             debug_img = debug_images[debug_img_index].image
-            draw_rect(debug_img, ref.bounding_rect, (0, 255, 0), thickness=4)
+            draw_rect(debug_img, ref.bounding_rect, (0, 255, 0), thickness=5)
             
     debug_filepaths = [os.path.join(image_out_directory, postfix_filename(geo_image.file_name, 'marked')) for geo_image in debug_geo_images]
     for k, (debug_image, filepath) in enumerate(zip(debug_images, debug_filepaths)):
         if not debug_image.existed:
-            debug_image.image = cv2.resize(debug_image.image, (0,0), fx=0.25, fy=0.25) 
-        cv2.imwrite(filepath, debug_image.image)
+            output_debug_image = cv2.resize(debug_image.image, (0,0), fx=0.25, fy=0.25)
+        else:
+            output_debug_image = debug_image.image
+        cv2.imwrite(filepath, output_debug_image)
         debug_geo_images[k].debug_filepath = filepath

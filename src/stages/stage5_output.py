@@ -15,6 +15,7 @@ import numpy as np
 from src.util.stage_io import unpickle_stage4_output, write_args_to_file
 from src.stages.exit_reason import ExitReason
 from src.util.parsing import parse_survey_file
+from src.analysis.stage2_output_analysis import warn_about_missing_single_codes
 from src.processing.item_processing import calculate_field_positions_and_range, all_segments_from_rows
 from src.processing.export_results import export_group_segments, export_results
 from src.util.numbering import number_serpentine
@@ -28,6 +29,7 @@ if __name__ == '__main__':
     parser.add_argument('output_directory', help='where to write output files')
     parser.add_argument('-s', dest='survey_filepath', default='none', help='File containing hand-surveyed items.')
     parser.add_argument('-c', dest='convert_coords', default='true', help='If true then will convert all coordinates to match survey file. Default true.')
+    parser.add_argument('-ps', dest='plant_spacing', default=0, help='Expect plant spacing in meters.  If provided then will run spacing checks on single code plants.')
     
     args = parser.parse_args()
     
@@ -36,6 +38,7 @@ if __name__ == '__main__':
     out_directory = args.output_directory
     survey_filepath = args.survey_filepath
     convert_coords = args.convert_coords.lower() == 'true'
+    plant_spacing = float(args.plant_spacing)
 
     rows = unpickle_stage4_output(input_filepath)
     
@@ -57,6 +60,12 @@ if __name__ == '__main__':
     
     # Now that plants are found calculate their field coordinates based on codes.
     calculate_field_positions_and_range(rows, codes, plants)
+    
+    # Run spacing verification on single plants to double check no codes were missed.
+    if plant_spacing > 0:
+        all_segments = all_segments_from_rows(rows)
+        single_segments = [segment for segment in all_segments if segment.start_code.type == 'SingleCode']
+        warn_about_missing_single_codes(single_segments, plant_spacing)
     
     # Shouldn't be necessary, but do it anyway.
     print 'Sorting items by number within field.'

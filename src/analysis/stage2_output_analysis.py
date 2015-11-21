@@ -111,11 +111,20 @@ def warn_about_missing_single_codes(single_segments, spacing_between_plants):
 
     num_good_lengths = 0 # how many groups have a close to expected length
     num_too_long = 0 # how many groups have a longer than expected length
-    for segment in single_segments:
+    for k, segment in enumerate(single_segments[:-1]):
+
+        next_segment = single_segments[k+1]
 
         expected_length = spacing_between_plants
 
-        actual_length = segment.length
+        if len(segment.items) > 0 and len(next_segment.items) > 0:
+            # Plants have been found.
+            plant1 = segment.items[0]
+            plant2 = next_segment.items[0]
+            actual_length = position_difference(plant1.position, plant2.position)
+        else:
+            # Plants not found yet so just compare codes.
+            actual_length = segment.length
         
         length_difference = actual_length - expected_length
         

@@ -36,7 +36,7 @@ class RecursiveSplitPlantFilter:
         self.expected_plant_spacing = plant_spacing
         
         self.closest_code_spacing = code_spacing / 2.0
-        self.closest_plant_spacing = plant_spacing / 2.0
+        self.closest_plant_spacing = plant_spacing / 1.5
         
         self.num_successfully_found_plants = 0
         self.num_created_because_no_plants = 0
@@ -222,8 +222,8 @@ class RecursiveSplitPlantFilter:
         lateral_error = abs(lateral_error)
         
         # lateral errors (in meters) for two linear pieces
-        x1 = 0.076 
-        x2 = 0.15
+        x1 = 0.07 
+        x2 = 0.12
         # penalty values for two linear pieces
         y1 = 0.1 
         y2 = 1.0

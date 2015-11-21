@@ -121,12 +121,13 @@ def stage1_extract_codes(**args):
             return ExitReason.user_interrupt
         
     # Write possibly missed codes out to separate directory
-    missed_codes_out_directory = os.path.join(out_directory, 'missed_codes/')
+    missed_codes_out_directory = os.path.join(out_directory, 'missed_codes_{}/'.format(postfix_id))
     if not os.path.exists(missed_codes_out_directory):
         os.makedirs(missed_codes_out_directory)
         
     print "Writing out missed codes"
-    missed_code_finder.write_out_missed_codes(codes, missed_codes_out_directory)
+    missed_code_filename = "missed_codes_{}.txt".format(postfix_id)
+    missed_code_finder.write_out_missed_codes(codes, missed_code_filename, missed_codes_out_directory)
   
     dump_filename = "stage1_output_{}_{}_{}.s1".format(postfix_id, int(geo_images[0].image_time), int(geo_image.image_time))
     print "Serializing {} geo images and {} codes to {}.".format(len(geo_images), len(codes), dump_filename)

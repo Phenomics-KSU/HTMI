@@ -27,7 +27,7 @@ class MissedCodeFinder:
         position = calculate_pixel_position(x, y, geo_image)
         self.possibly_missed_codes.append(self.MissedCode(bouding_rect, position, geo_image.file_name, geo_image.file_path))
 
-    def write_out_missed_codes(self, found_codes, out_directory):
+    def write_out_missed_codes(self, found_codes, missed_code_filename, out_directory):
         
         missing_codes = []
         for possibly_missed_code in self.possibly_missed_codes:
@@ -40,7 +40,7 @@ class MissedCodeFinder:
             if not was_actually_found:
                 missing_codes.append(possibly_missed_code)
         
-        missed_code_filepath = os.path.join(out_directory, "missed_codes.txt")
+        missed_code_filepath = os.path.join(out_directory, missed_code_filename)
         missed_code_file = open(missed_code_filepath, 'wb')
         missed_code_csv_writer = csv.writer(missed_code_file)
         
