@@ -119,6 +119,10 @@ def cluster_geo_image_items(geo_image, segment, max_plant_size, max_plant_part_d
     else:
         plant_parts = leaves + stick_parts
     geo_image_possible_plants = cluster_rectangle_items(plant_parts, max_plant_part_distance, max_plant_size)
+    
+    for plant in geo_image_possible_plants:
+        plant['image_altitude'] = geo_image.position[2]
+    
     geo_image.items['possible_plants'] = geo_image_possible_plants
     return geo_image_possible_plants
 

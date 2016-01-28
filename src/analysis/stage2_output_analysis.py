@@ -50,8 +50,8 @@ def check_code_precision(merged_codes):
                 
     print "From average position largest separation is {} and average is {}".format(largest_separation, average_separation)
 
-def warn_about_missing_and_extra_codes(missing_code_ids, extra_code_ids):
-    print "Missing {} ids.".format(len(missing_code_ids))
+def warn_about_missing_and_extra_group_codes(missing_code_ids, extra_code_ids):
+    print "Missing {} group ids.".format(len(missing_code_ids))
     if len(missing_code_ids) < 30:
         for id in missing_code_ids:
             print "missing id: {}".format(id)
@@ -88,7 +88,7 @@ def warn_about_bad_group_lengths(groups, spacing_between_plants):
         if len(group.segments) > 1:
             # Give a little more wiggle room if there's multiple segments
             max_length += spacing_between_plants * 5
-            #continue # temporary, just want to look at single segments
+            continue # temporary, just want to look at single segments
         
         if actual_length > max_length:
             print "Group with start code {} is {} meters too long.".format(group.id, abs(length_difference))
@@ -107,7 +107,20 @@ def warn_about_bad_group_lengths(groups, spacing_between_plants):
     print " and {} groups that didn't have expected lengths".format(num_groups_without_expected_length)
     print "\n"
  
-def warn_about_missing_single_codes(single_segments, spacing_between_plants):
+def warn_about_missing_single_codes(found_code_ids):
+    
+    found_code_numbers = [int(id[1:]) for id in found_code_ids]
+
+    max_number = max(found_code_numbers)
+    expected_code_numbers = range(1, max_number+1)
+    
+    missing_code_numbers = [n for n in expected_code_numbers if n not in found_code_numbers]
+ 
+    print "Missing {} single ids.".format(len(missing_code_numbers))
+    for number in missing_code_numbers:
+        print "missing single id with number {}".format(number)
+ 
+def warn_about_missing_single_code_lengths(single_segments, spacing_between_plants):
 
     num_good_lengths = 0 # how many groups have a close to expected length
     num_too_long = 0 # how many groups have a longer than expected length
@@ -135,6 +148,9 @@ def warn_about_missing_single_codes(single_segments, spacing_between_plants):
             print "\nSingle segment {} to {} is {} feet too long.".format(segment.start_code.name, segment.end_code.name, length_difference * 100 / 30)
             print "{} to {}.".format(segment.start_code.parent_image_filename, segment.end_code.parent_image_filename)
             num_too_long += 1
+            
+        if actual_length < 0.06:
+            print "WARNING - segment {} to {} is way too short".format(segment.start_code.name, segment.end_code.name)
     
     print "\n------Single Segment Length Report------"
     print "Found {} single codes with close expected lengths".format(num_good_lengths)
@@ -186,17 +202,21 @@ if __name__ == '__main__':
     single_codes = [seg.start_code for seg in single_segments]
     group_codes = [seg.start_code for seg in group_segments]
     
+    single_code_ids = [code.name for code in single_codes]
     group_code_ids = [code.name for code in group_codes]
     listed_code_ids = [listing.id for listing in code_listings]
     
-    extra_codes_ids = [code.name for code in group_codes if code.name not in listed_code_ids]
-    missing_code_ids = [id for id in listed_code_ids if id not in group_code_ids]
+    extra_group_codes_ids = [code.name for code in group_codes if code.name not in listed_code_ids]
+    missing_group_code_ids = [id for id in listed_code_ids if id not in group_code_ids]
     
-    warn_about_missing_and_extra_codes(missing_code_ids, extra_codes_ids)
+    warn_about_missing_and_extra_group_codes(missing_group_code_ids, extra_group_codes_ids)
     
     warn_about_bad_group_lengths(groups, plant_spacing) 
     
-    warn_about_missing_single_codes(single_segments, plant_spacing)
+    # KLM - not reliable since not all numbers were actually planted
+    #warn_about_missing_single_codes(single_code_ids)
+    
+    warn_about_missing_single_code_lengths(single_segments, plant_spacing)
     
     if not os.path.exists(out_directory):
         os.makedirs(out_directory)

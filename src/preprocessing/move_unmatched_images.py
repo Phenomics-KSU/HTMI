@@ -12,7 +12,7 @@ if __name__ == '__main__':
     default_recursive = 'true'
     parser = argparse.ArgumentParser(description='Match move any images that dont have a log entry to a an unmatched directory')
     parser.add_argument('image_directory', help='Directory containing image files.')
-    parser.add_argument('image_logs', help='Space separated list of log filepaths containing file names to match to actual images.')
+    parser.add_argument('image_logs', help='Comma separated list of log filepaths containing file names to match to actual images.')
     parser.add_argument('extensions', help='List of file extensions to rename separated by commas. Example "jpg, CR2". Case sensitive.')
     parser.add_argument('-r', dest='recursive', default=default_recursive, help='If true then will recursively search through input directory for images. Default {}'.format(default_recursive))
     args = parser.parse_args()
@@ -57,7 +57,7 @@ if __name__ == '__main__':
             
     print "Read in {} time stamped image names from image log.".format(len(log_contents))
 
-    output_directory = os.path.join(image_directory, 'unmatched')
+    output_directory = os.path.join(image_directory, 'unmatched_images')
     
     if not os.path.exists(output_directory):
         os.mkdir(output_directory)

@@ -14,6 +14,9 @@ def calculate_east_north_offsets(items, survey_items):
         except IndexError:
             continue
         
+        if matching_item.name.startswith('K'):
+            continue # dont use single codes
+        
         east_offsets.append(survey_item.position[0] - matching_item.position[0])
         north_offsets.append(survey_item.position[1] - matching_item.position[1])
         
@@ -29,6 +32,10 @@ def run_survey_verification(items, survey_items):
             matching_item = [item for item in items if item.name.lower() == survey_item.name][0]
         except IndexError:
             print "No match for {}".format(survey_item)
+            continue
+        
+        if matching_item.name.startswith('K'):
+            # TODO Use plant for single code
             continue
         
         east_error = survey_item.position[0] - matching_item.position[0]

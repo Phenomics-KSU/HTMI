@@ -171,7 +171,7 @@ def calculate_item_position(item, geo_image):
     x, y = rectangle_center(item.bounding_rect)
     return calculate_pixel_position(x, y, geo_image)
     
-def extract_global_plants_from_images(plants, geo_images):
+def extract_global_plants_from_images(plants, geo_images, out_directory):
     
     for plant in plants:
         global_bounding_rect = plant.bounding_rect
@@ -186,11 +186,21 @@ def extract_global_plants_from_images(plants, geo_images):
                     plant.bounding_rect = image_rect
                     plant.parent_image_filename = geo_image.file_name
                 else:
-                    plant_copy = Plant('plant', position=plant.position, zone=plant.zone)
+                    plant_copy = plant.__class__('plant', position=plant.position, zone=plant.zone)
                     plant_copy.bounding_rect = image_rect
                     plant_copy.parent_image_filename = geo_image.file_name
                     plant.add_other_item(plant_copy)
                 
-                # TODO extract picture of plant
-
+                if out_directory is None:
+                    continue
+                
+                image_out_directory = os.path.join(out_directory, os.path.splitext(geo_image.file_name)[0])
+                ImageWriter.output_directory = image_out_directory
+                
+                img = cv2.imread(geo_image.file_path, cv2.CV_LOAD_IMAGE_COLOR)
+                if img is not None:
+                    plant_img = extract_square_image(img, image_rect, 200)
+                    
+                    plant_image_fname = postfix_filename(geo_image.file_name, "_{}".format(plant.type))
+                    plant.image_path = ImageWriter.save_normal(plant_image_fname, plant_img)
     

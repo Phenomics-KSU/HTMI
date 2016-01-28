@@ -16,8 +16,10 @@ def export_results(items, rows, out_filepath):
                         'planting_direction',
                         'row',
                         'range',
-                        'num_in_field',
-                        'num_in_row',
+                        'field_num',
+                        'row_num',
+                        'plant_field_num',
+                        'plant_row_num',
                         'easting',
                         'northing',
                         'altitude',
@@ -51,6 +53,12 @@ def export_results(items, rows, out_filepath):
             if len(row) > 0:
                 row_direction = row[0].direction
                 
+            plant_num_in_field = ' '
+            plant_num_in_row = ' '
+            if 'plant' in item.type.lower(): 
+                plant_num_in_field = item.plant_num_in_field
+                plant_num_in_row = item.plant_num_in_row
+                
             bound_x_pix = -1
             bound_y_pix = -1
             bound_width_pix = -1
@@ -71,6 +79,8 @@ def export_results(items, rows, out_filepath):
                            item.range,
                            item.number_within_field,
                            item.number_within_row,
+                           plant_num_in_field,
+                           plant_num_in_row,
                            '{:.3f}'.format(item.position[0]),
                            '{:.3f}'.format(item.position[1]),
                            '{:.3f}'.format(item.position[2]),

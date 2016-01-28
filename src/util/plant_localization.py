@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 # Project imports
-from src.data.field_item import Plant
+from src.data.field_item import Plant, CreatedPlant
 from src.processing.item_processing import lateral_and_projection_distance_2d, projection_to_position_2d
 from src.processing.item_processing import position_difference
 from src.util.clustering import corner_rectangle_size
@@ -41,7 +41,8 @@ class RecursiveSplitPlantFilter:
         self.num_successfully_found_plants = 0
         self.num_created_because_no_plants = 0
         self.num_created_because_no_valid_plants = 0
-        
+        self.num_created_plants_skipped_at_end = 0
+    
         # Scales to weight the importance of different penalties
         self.lateral_penalty_scale = lateral_ps
         self.projection_penalty_scale = projection_ps
@@ -57,10 +58,17 @@ class RecursiveSplitPlantFilter:
         sub_parts = self.split_into_subparts(whole_part)
         
         actual_plants = []
-        for part in sub_parts:
+        for k, part in enumerate(sub_parts):
+            
+            # If last plant is a CreatedPlant and it's close to the end code then don't add it.
+            if (k == len(sub_parts) - 1) and part.start.type == 'CreatedPlant':
+                if part.length < self.expected_plant_spacing:
+                    self.num_created_plants_skipped_at_end += 1
+                    continue
+            
             # Add start of segment part.  Don't add the end since it should be the start of the next part,
             # and the last part the end item is a code so we don't want to add that either.
-            if part.start.type.lower() == 'plant':
+            if 'plant' in part.start.type.lower():
                 actual_plants.append(part.start)
                 
         assert('code' in sub_parts[-1].end.type.lower())
@@ -118,7 +126,7 @@ class RecursiveSplitPlantFilter:
         closest_expected_position = projection_to_position_2d(closest_expected_projection, segment_part.start.position, segment_part.end.position)
         # Add on z value
         closest_expected_position = closest_expected_position + (segment_part.start.position[2],)
-        new_plant = Plant(name='plant', position=closest_expected_position, zone=segment_part.start.zone)
+        new_plant = CreatedPlant(name='plant', position=closest_expected_position, zone=segment_part.start.zone)
         new_plant.projection = closest_expected_projection
         return new_plant
     
@@ -316,7 +324,7 @@ class ClosestSinglePlantFilter:
             bounding_rect = best_plant['rect']
             self.num_successfully_found_plants += 1
             
-        plant = Plant('plant', position=position, zone=segment.start_code.zone, bounding_rect=bounding_rect)
+        plant = Plant(name=segment.start_code.name, position=position, zone=segment.start_code.zone, bounding_rect=bounding_rect)
         
         return plant
     
@@ -345,3 +353,41 @@ class ClosestSinglePlantFilter:
         
         return penalty
         
+class PlantSpacingFilter(object):
+    
+    def __init__(self, spacing_thresh):
+        
+        self.spacing_thresh = spacing_thresh
+        self.num_plants_moved = 0
+    
+    def filter(self, plants):
+        
+        for k, plant in enumerate(plants):
+            
+            if k == 0 or k == len(plants) - 1:
+                continue
+            
+            last_plant = plants[k-1]
+            next_plant = plants[k+1]
+            
+            last_dist = position_difference(last_plant.position, plant.position)
+            next_dist = position_difference(next_plant.position, plant.position)
+            
+            min_dist = min(last_dist, next_dist)
+            max_dist = max(last_dist, next_dist)
+            
+            if min_dist == 0:
+                continue # protect against division by zero
+            
+            ratio = max_dist / min_dist
+            
+            if ratio <= self.spacing_thresh:
+                continue # good spacing so don't need to do anything
+            
+            # Bad spacing so move plant to be in center
+            avg_position = np.mean([last_plant.position, next_plant.position], axis=0)
+            
+            plants[k] = CreatedPlant(name='plant', position=avg_position, zone=last_plant.zone)
+            
+            self.num_plants_moved += 1
+                

@@ -42,13 +42,13 @@ if __name__ == '__main__':
                     new_log_file.writeline(line)
                 else:
                     fields = line.replace(',',' ').split()
-                    if len(fields) != 8:
+                    if len(fields) != 9:
                         print 'Incorrect number of fields on line ' + str(i+1)
                     
                     utc_timestamp = float(fields[0])
                     image_name = fields[1]
-                    position_fields = fields[2:4]
-                    orientation_fields = fields[5:]
+                    position_fields = fields[2:6]
+                    orientation_fields = fields[6:]
                     
                     utc_datetime = datetime.datetime.utcfromtimestamp(utc_timestamp)
                     
@@ -56,11 +56,9 @@ if __name__ == '__main__':
                     utc_time = "{:02d}:{:02d}:{:02d}".format(utc_datetime.hour, utc_datetime.minute, utc_datetime.second)
                     utc_milliseconds = int(utc_datetime.microsecond / 1000)
                     
-                    orientation_info = []
-                    for field in orientation_fields:
-                        orientation_info.append(math.degrees(float(field)))
-                    
-                    new_log_writer.writerow([image_name, utc_date, utc_time, utc_milliseconds] + fields[2:])
+                    orientation_fields_in_degrees = [math.degrees(float(f)) for f in orientation_fields]
+
+                    new_log_writer.writerow([image_name, utc_date, utc_time, utc_milliseconds] + position_fields + orientation_fields_in_degrees)
                     
         print "\nFinished writing updated file {}".format(new_log_filepath)
         new_log_file.close()
@@ -71,7 +69,7 @@ if __name__ == '__main__':
     # Try to combine orientation and position
     if os.path.exists(position_filepath) and os.path.exists(orientation_filepath):
         position_filepath_directory = os.path.split(position_filepath)[0]
-        output_filepath = os.path.join(position_filepath_directory, 'combined_db.csv')
+        output_filepath = os.path.join(position_filepath_directory, 'vehicle_state_db.csv')
         new_file = open(output_filepath, 'wb')
         new_file_writer = csv.writer(new_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         
@@ -80,10 +78,13 @@ if __name__ == '__main__':
         
         orientations = []
         for i, line in enumerate(orientation_file.readlines()):
+            if line.strip().startswith('#'):
+                continue
             fields = line.replace(',',' ').split()
             if len(fields) != 4:
                 print 'Incorrect number of fields on line ' + str(i+1)
-                
+                continue
+
             timestamp = float(fields[0])
             orientation_info = [float(f) for f in fields[1:]]
         
@@ -92,10 +93,12 @@ if __name__ == '__main__':
         orientation_line_num = 0
         last_position_timestamp = 0
         for i, line in enumerate(position_file):
-            
+            if line.strip().startswith('#'):
+                continue
             fields = line.replace(',',' ').split()
             if len(fields) != 5:
                 print 'Incorrect number of fields on line ' + str(i+1)
+                continue
                 
             timestamp = float(fields[0])
             position_info = fields[1:]

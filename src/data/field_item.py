@@ -134,17 +134,39 @@ class GroupItem(FieldItem):
             return -1
     
 class Plant(GroupItem):
-    '''Unique plant in field'''
+    '''Unique plant found in field'''
     def __init__(self, *args, **kwargs):
         '''Constructor.'''
+        self._plant_num_in_field = -1 # Ordering number for just plant, not codes
+        self._plant_num_in_row = -1   # Ordering number for just plant, not codes
         super(Plant, self).__init__(*args, **kwargs)
         
-class Gap(GroupItem):
-    '''Gap detected within grouping.'''
+    @property
+    def plant_num_in_field(self):
+        return self._plant_num_in_field
+    
+    @plant_num_in_field.setter
+    def plant_num_in_field(self, new_value):
+        self._plant_num_in_field = new_value
+        for item in self.other_items:
+            item.plant_num_in_field = new_value
+            
+    @property
+    def plant_num_in_row(self):
+        return self._plant_num_in_row
+    
+    @plant_num_in_row.setter
+    def plant_num_in_row(self, new_value):
+        self._plant_num_in_row = new_value
+        for item in self.other_items:
+            item.plant_num_in_row = new_value
+
+class CreatedPlant(Plant):
+    '''Plant not found in field but created where one should be.'''
     def __init__(self, *args, **kwargs):
         '''Constructor.'''
-        super(Gap, self).__init__(*args, **kwargs)
-        
+        super(CreatedPlant, self).__init__(*args, **kwargs)
+
 class GroupCode(GroupItem):
     '''Code found within image corresponding to plant grouping.'''
     def __init__(self, *args, **kwargs):

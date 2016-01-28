@@ -58,6 +58,9 @@ def stage3_extract_plant_parts(**args):
     
     rows = sorted(rows, key=lambda r: r.number)
     
+    # Sort geo images so they're processed by time.
+    geo_images = sorted(geo_images, key=lambda img: img.image_time)
+    
     # Look for start/stop filenames so user doesn't have to process all images.
     start_geo_index, stop_geo_index = get_subset_of_geo_images(geo_images, debug_start, debug_stop)
         
@@ -96,7 +99,7 @@ def stage3_extract_plant_parts(**args):
             num_images_not_in_segment += 1
             continue
         
-        print "[{} / {}]".format(k, len(geo_images))
+        print "{} [{} / {}]".format(geo_image.file_name, k, len(geo_images))
             
         leaves, sticks = process_geo_image_to_find_plant_parts(geo_image, leaf_finder, stick_finder, image_out_directory, use_marked_image)
         

@@ -11,12 +11,13 @@ import numpy as np
 from src.util.image_utils import rotated_to_regular_rect, rectangle_corners
 from src.extraction.item_extraction import calculate_pixel_position, calculate_position_pixel
 
-def number_serpentine(rows):
+def number_serpentine(rows, field_num_start=1):
     '''Return list of all items in rows ordered (and numbered) in a serpentine pattern.'''
     
     rows = sorted(rows, key=lambda r: r.number)
     
-    current_field_item_num = 1
+    current_field_item_num = field_num_start
+    current_field_plant_num = field_num_start
     ordered_items = []
     for row in rows:
         row_items = []
@@ -34,10 +35,21 @@ def number_serpentine(rows):
         if row.number % 2 == 0:
             row_items.reverse()
             
-        for item_num_in_row, item in enumerate(row_items):
+        item_num_in_row = 1
+        plant_num_in_row = 1
+        for item in row_items:
+            
             item.number_within_field = current_field_item_num
-            item.number_within_row = item_num_in_row + 1 # index off 1 instead of 0
-            ordered_items.append(item)
+            item.number_within_row = item_num_in_row
             current_field_item_num += 1
+            item_num_in_row += 1
+            
+            if 'plant' in item.type.lower():
+                item.plant_num_in_field = current_field_plant_num
+                item.plant_num_in_row = plant_num_in_row
+                current_field_plant_num += 1
+                plant_num_in_row += 1
+
+            ordered_items.append(item)
             
     return ordered_items

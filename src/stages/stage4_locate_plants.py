@@ -12,8 +12,9 @@ from src.stages.exit_reason import ExitReason
 from src.processing.item_processing import all_segments_from_rows
 from src.util.clustering import cluster_rectangle_items, cluster_geo_image_items
 from src.util.clustering import corner_rect_center, filter_out_noise, merge_corner_rectangles
-from src.util.plant_localization import RecursiveSplitPlantFilter, ClosestSinglePlantFilter
+from src.util.plant_localization import RecursiveSplitPlantFilter, ClosestSinglePlantFilter, PlantSpacingFilter
 from src.extraction.item_extraction import extract_global_plants_from_images
+from src.util.image_writer import ImageWriter
 
 def stage4_locate_plants(**args):
     ''' 
@@ -37,6 +38,8 @@ def stage4_locate_plants(**args):
     lateral_penalty = float(args.pop('lateral_penalty'))
     projection_penalty = float(args.pop('projection_penalty'))
     closeness_penalty = float(args.pop('closeness_penalty'))
+    spacing_filter_thresh = float(args.pop('spacing_filter_thresh'))
+    extract_images = args.pop('extract_images').lower() == 'true'
     debug_marked_image = args.pop('marked_image').lower() == 'true'
     
     if len(args) > 0:
@@ -46,7 +49,7 @@ def stage4_locate_plants(**args):
     rows = unpickle_stage3_output(input_filepath)
     
     if len(rows) == 0:
-        print "No rows or could be loaded from {}".format(input_filepath)
+        print "No rows could be loaded from {}".format(input_filepath)
         sys.exit(ExitReason.no_rows)
     
     if not os.path.exists(out_directory):
@@ -58,6 +61,15 @@ def stage4_locate_plants(**args):
     normal_plant_filter = RecursiveSplitPlantFilter(code_spacing, plant_spacing, lateral_penalty, projection_penalty, 
                                                     closeness_penalty, stick_multiplier, leaf_multiplier)
     closest_plant_filter = ClosestSinglePlantFilter(single_max_dist)
+    
+    # Use a spacing filter for detecting and fixing any mis-chosen plants.
+    plant_spacing_filter = PlantSpacingFilter(spacing_filter_thresh)
+    
+    if extract_images:
+        ImageWriter.level = ImageWriter.NORMAL
+        image_out_directory = os.path.join(out_directory, 'images/')
+    else:
+        image_out_directory = None
     
     for seg_num, segment in enumerate(all_segments):
         
@@ -73,7 +85,7 @@ def stage4_locate_plants(**args):
                 possible_plants += cluster_geo_image_items(geo_image, segment, max_plant_size, max_plant_part_distance)
                 
         if len(possible_plants) == 0:
-            print "Warning: segment {} has no associated images.".format(segment.start_code.name)
+            print "Warning: segment {} has no possible plants.".format(segment.start_code.name)
             continue
         
         # Remove small parts that didn't get clustered.
@@ -84,6 +96,7 @@ def stage4_locate_plants(**args):
         print "clustered down to {} possible plants".format(len(possible_plants))
     
         # Find UTM positions of possible plants so that they can be easily compared between different images.
+        last_plant = None
         for plant in possible_plants:  
             stick_parts = [part for part in plant['items'] if part['item_type'] == 'stick_part']
             if len(stick_parts) > 0:
@@ -92,17 +105,30 @@ def stage4_locate_plants(**args):
             else:
                 # No blue sticks so just use entire plant
                 positioning_rect = plant['rect']
+            if 'image_altitude' in plant:
+                altitude = plant['image_altitude']
+            elif last_plant is not None:
+                altitude = last_plant['position'][2]
+            else:
+                altitude = segment.start_code.position[2]
             px, py = corner_rect_center(positioning_rect)
-            plant['position'] = (px, py, segment.start_code.position[2])
+            plant['position'] = (px, py, altitude)
+            
+            last_plant = plant
+            
+        if segment.start_code.type == 'RowCode' and segment.end_code.type == 'SingleCode':
+            # Special case... don't want to process this segment since there shouldn't be a plant associated with it.
+            continue
         
         if segment.is_special:
             selected_plant = closest_plant_filter.find_actual_plant(possible_plants, segment)
             actual_plants = [selected_plant] 
         else:
             actual_plants = normal_plant_filter.locate_actual_plants_in_segment(possible_plants, segment)
+            plant_spacing_filter.filter(actual_plants)
             print "{} actual plants found".format(len(actual_plants))
         
-        extract_global_plants_from_images(actual_plants, segment.geo_images)
+        extract_global_plants_from_images(actual_plants, segment.geo_images, image_out_directory)
                 
         for plant in actual_plants:
             plant.row = segment.row_number
@@ -116,10 +142,14 @@ def stage4_locate_plants(**args):
     print 'Successfully found {} total plants'.format(normal_plant_filter.num_successfully_found_plants)
     print 'Created {} plants due to no possible plants'.format(normal_plant_filter.num_created_because_no_plants)
     print 'Created {} plants due to no valid plants'.format(normal_plant_filter.num_created_because_no_valid_plants)
+    print 'Removed {} created plants because too close to end of segment.'.format(normal_plant_filter.num_created_plants_skipped_at_end)
 
     print "\n---------Single Groups----------"
     print 'Successfully found {} total plants'.format(closest_plant_filter.num_successfully_found_plants)
     print 'Created {} plants due to no valid plants'.format(closest_plant_filter.num_created_because_no_plants)
+    
+    print "\n-----Spacing Filter Results-----"
+    print 'Relocated {} plants due to bad spacing.'.format(plant_spacing_filter.num_plants_moved)
 
     # Pickle
     dump_filename = "stage4_output.s4"
@@ -145,6 +175,8 @@ if __name__ == '__main__':
     parser.add_argument('-lp', dest='lateral_penalty', default=1, help='Higher value penalizes larger values from projected line in orthogonal direction.')
     parser.add_argument('-pp', dest='projection_penalty', default=1, help='Higher value penalizes larger values along projected line.')
     parser.add_argument('-cp', dest='closeness_penalty', default=1, help='Higher value penalizes distances from current item.')
+    parser.add_argument('-st', dest='spacing_filter_thresh', default=1.5, help='If you take the ratio of distances between 3 consecutive plants and its greater than this value then the center plant will be centered between the outside 2 plants.')
+    parser.add_argument('-ei', dest='extract_images', default='false', help='If true then will extract image of each plant. This can take a while.  Default false.')
     parser.add_argument('-mk', dest='marked_image', default='false', help='If true then will output marked up image.  Default false.')
     
     args = vars(parser.parse_args())

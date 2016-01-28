@@ -59,11 +59,12 @@ class CodeFinder:
 
             if scan_successful:
 
-                qr_code = create_qr_code(qr_data[0], rectangle) 
+                qr_code = create_qr_code(qr_data[0]) 
                 
                 if qr_code is None:
                     print 'WARNING: Invalid QR data found ' + qr_data[0]
                 else:
+                    qr_code.bounding_rect = rectangle
                     qr_items.append(qr_code)
                     
             elif self.missed_code_finder is not None:
@@ -150,7 +151,7 @@ class CodeFinder:
 
         return [symbol.data for symbol in image]
 
-def create_qr_code(qr_data, bounding_rect):
+def create_qr_code(qr_data):
     '''Return either SingleCode, GroupCode or RowCode depending on data.  Return None if not valid data.'''
         
     if len(qr_data) == 0:
@@ -164,9 +165,5 @@ def create_qr_code(qr_data, bounding_rect):
         qr_item = GroupCode(name = qr_data) 
     else:
         qr_item = None
-        
-    # Fill in any common fields here.
-    if qr_item is not None:
-        qr_item.bounding_rect = bounding_rect
         
     return qr_item

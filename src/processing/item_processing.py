@@ -59,11 +59,11 @@ def process_geo_image_to_find_plant_parts(geo_image, leaf_finder, stick_finder, 
     
     if image is None:
         print 'Cannot open image: {}'.format(geo_image.file_path)
-        return []
+        return [], []
     
     if geo_image.resolution <= 0:
         print "Cannot calculate image resolution. Skipping image."
-        return []
+        return [], []
     
     # Specify 'image directory' so that if any images associated with current image are saved a directory is created.
     image_out_directory = os.path.join(out_directory, os.path.splitext(geo_image.file_name)[0])
@@ -153,6 +153,8 @@ def dont_overlap_with_items(items, rectangles):
         enclosed = False
         rx1, ry1, rx2, ry2 = rectangle_corners(rotated_to_regular_rect(rect), False)
         for item in items:
+            if item.bounding_rect is None:
+                continue # item wasn't imaged
             ix1, iy1, ix2, iy2 = rectangle_corners(rotated_to_regular_rect(item.bounding_rect), False) # item corners
             if ry1 > iy1 and ry2 < iy2 and rx1 > ix1 and rx2 < ix2:
                 enclosed = True
@@ -296,14 +298,15 @@ def apply_code_modifications(modifications, geo_images, all_codes, output_direct
             try:
                 geo_image = [img for img in geo_images if modification.parent_filename == img.file_name][0]
             except IndexError:
-                print "Can't find a matching geo image for modification".format(modification)
+                print "Can't find a matching geo image for modification {}".format(modification)
                 continue
             x = modification.x_pixels
             y = modification.y_pixels
             resolution = geo_image.resolution
             side_length = 10 / resolution
             bounding_rect = ((x, y), (side_length, side_length), -1)
-            code = create_qr_code(modification.id, bounding_rect)
+            code = create_qr_code(modification.id)
+            code.bounding_rect = bounding_rect
             if code is None:
                 print "Can't create code with ID {}".format(modification.id)
                 continue
@@ -321,6 +324,15 @@ def apply_code_modifications(modifications, geo_images, all_codes, output_direct
             geo_image.items['codes'].append(code)
             print "Successfully added code with ID {}".format(code.name)
             
+        if type(modification).__name__ == 'AddSurveyedCode':
+
+            code = create_qr_code(modification.id)
+            code.position = (modification.x, modification.y, modification.z)
+            code.zone = modification.zone
+            all_codes.append(code)
+            geo_image.items['codes'].append(code)
+            
+            print "Successfully added code with ID {}".format(code.name)
         elif type(modification).__name__ == 'DeleteCode':
  
             id_to_delete = modification.code_id

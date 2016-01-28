@@ -120,7 +120,9 @@ def debug_draw_plants_in_images_subset(debug_geo_images, possible_plants, actual
     debug_filepaths = [os.path.join(image_out_directory, postfix_filename(geo_image.file_name, 'marked')) for geo_image in debug_geo_images]
     for k, (debug_image, filepath) in enumerate(zip(debug_images, debug_filepaths)):
         if not debug_image.existed:
-            output_debug_image = cv2.resize(debug_image.image, (0,0), fx=0.25, fy=0.25)
+            output_debug_image = debug_image.image
+            # KLM - don't make image smaller or bounding rect coordinates won't be right next time try to draw on image.
+            #output_debug_image = cv2.resize(debug_image.image, (0,0), fx=0.25, fy=0.25)
         else:
             output_debug_image = debug_image.image
         cv2.imwrite(filepath, output_debug_image)

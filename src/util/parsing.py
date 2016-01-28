@@ -76,7 +76,8 @@ def parse_code_listing_file(group_filename):
 
 def parse_code_modifications_file(code_modifications_filepath):
     '''Parse file and return list of named tuples for difference modification types.'''
-    AddImagedCode = namedtuple('AddImagedCode', 'id parent_filename, x_pixels, y_pixels')
+    AddImagedCode = namedtuple('AddImagedCode', 'id parent_filename x_pixels y_pixels')
+    AddSurveyedCode = namedtuple('AddSurveyedCode', 'id x y z zone')
     DeleteCode = namedtuple('DeleteCode', 'code_id')
     code_modifications = []
     with open(code_modifications_filepath, 'r') as code_modifications_file:
@@ -95,6 +96,13 @@ def parse_code_modifications_file(code_modifications_filepath):
                     x_pixels = int(fields[3])
                     y_pixels = int(fields[4])
                     code_modifications.append(AddImagedCode(id, parent_filename, x_pixels, y_pixels))
+                elif modification_type == 'add_surveyed_code':
+                    id = fields[1]
+                    x = float(fields[2])
+                    y = float(fields[3])
+                    z = float(fields[4])
+                    zone = fields[5]
+                    code_modifications.append(AddSurveyedCode(id, x, y, z, zone))
                 elif modification_type == 'delete_code':
                     id = fields[1]
                     code_modifications.append(DeleteCode(id))
