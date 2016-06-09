@@ -144,6 +144,9 @@ def warn_about_missing_single_code_lengths(single_segments, spacing_between_plan
         # how long segment can be without being flagged
         max_length = spacing_between_plants * 1.75
         
+        if segment.end_code.type == 'RowCode':
+            continue # length won't be valid
+        
         if actual_length > max_length:
             print "\nSingle segment {} to {} is {} feet too long.".format(segment.start_code.name, segment.end_code.name, length_difference * 100 / 30)
             print "{} to {}.".format(segment.start_code.parent_image_filename, segment.end_code.parent_image_filename)

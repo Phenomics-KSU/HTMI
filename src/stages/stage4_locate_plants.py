@@ -127,6 +127,13 @@ def stage4_locate_plants(**args):
             actual_plants = normal_plant_filter.locate_actual_plants_in_segment(possible_plants, segment)
             plant_spacing_filter.filter(actual_plants)
             print "{} actual plants found".format(len(actual_plants))
+            
+        # Now that plant filter has run make sure all created plants have a bounding rectangle so they show up in output images.
+        for plant in actual_plants:
+            if plant.type == 'CreatedPlant':
+                px, py, pz = plant.position
+                po = .12 # plant offset in meters
+                plant.bounding_rect = [(px-po,py-po), (px-po,py+po), (px+po,py-po), (px+po,py+po)] 
         
         extract_global_plants_from_images(actual_plants, segment.geo_images, image_out_directory)
                 
@@ -140,10 +147,8 @@ def stage4_locate_plants(**args):
 
     print "\n---------Normal Groups----------"
     print 'Successfully found {} total plants'.format(normal_plant_filter.num_successfully_found_plants)
-    print 'Created {} plants due to no possible plants'.format(normal_plant_filter.num_created_because_no_plants)
-    print 'Created {} plants due to no valid plants'.format(normal_plant_filter.num_created_because_no_valid_plants)
-    print 'Removed {} created plants because too close to end of segment.'.format(normal_plant_filter.num_created_plants_skipped_at_end)
-
+    print 'Created {} plants'.format(normal_plant_filter.num_created_plants)
+    
     print "\n---------Single Groups----------"
     print 'Successfully found {} total plants'.format(closest_plant_filter.num_successfully_found_plants)
     print 'Created {} plants due to no valid plants'.format(closest_plant_filter.num_created_because_no_plants)

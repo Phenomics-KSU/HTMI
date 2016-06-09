@@ -2,6 +2,7 @@
 
 import sys
 import math
+import copy
 
 # OpenCV imports
 import cv2
@@ -35,14 +36,14 @@ class RecursiveSplitPlantFilter:
         self.expected_code_spacing = code_spacing
         self.expected_plant_spacing = plant_spacing
         
-        self.closest_code_spacing = code_spacing / 2.0
+        # Allow row codes to be much closer to plants since they're hand placed.
+        self.closest_group_code_spacing = code_spacing / 2.0
+        self.closest_row_code_spacing = code_spacing / 8.0
         self.closest_plant_spacing = plant_spacing / 1.5
         
         self.num_successfully_found_plants = 0
-        self.num_created_because_no_plants = 0
-        self.num_created_because_no_valid_plants = 0
-        self.num_created_plants_skipped_at_end = 0
-    
+        self.num_created_plants = 0
+
         # Scales to weight the importance of different penalties
         self.lateral_penalty_scale = lateral_ps
         self.projection_penalty_scale = projection_ps
@@ -58,27 +59,33 @@ class RecursiveSplitPlantFilter:
         sub_parts = self.split_into_subparts(whole_part)
         
         actual_plants = []
-        for k, part in enumerate(sub_parts):
-            
-            # If last plant is a CreatedPlant and it's close to the end code then don't add it.
-            if (k == len(sub_parts) - 1) and part.start.type == 'CreatedPlant':
-                if part.length < self.expected_plant_spacing:
-                    self.num_created_plants_skipped_at_end += 1
-                    continue
-            
+        for part in sub_parts:
             # Add start of segment part.  Don't add the end since it should be the start of the next part,
             # and the last part the end item is a code so we don't want to add that either.
             if 'plant' in part.start.type.lower():
                 actual_plants.append(part.start)
                 
         assert('code' in sub_parts[-1].end.type.lower())
+        
+        for plant in actual_plants:
+            if plant.type == 'CreatedPlant':
+                self.num_created_plants += 1
+            else:
+                self.num_successfully_found_plants += 1
              
         return actual_plants
     
     def split_into_subparts(self, segment_part):
     
-        split_segment_parts = self.process_segment_part(segment_part)
+        reverse_segment_part = SegmentPart(segment_part.end, segment_part.start)
+        reverse_segment_part.possible_plants = copy.copy(segment_part.possible_plants)
+    
+        # Need to process reverse first so when splitting segments the possible plants will have correct 'forward' projections.
+        reverse_plant = self.process_segment_part(reverse_segment_part)
+        forward_plant = self.process_segment_part(segment_part)
         
+        split_segment_parts = self.split_segment_into_parts(segment_part, forward_plant, reverse_plant)
+  
         all_segment_parts = []
         if len(split_segment_parts) == 0:
             # Can't split segment part up into smaller parts.
@@ -94,8 +101,8 @@ class RecursiveSplitPlantFilter:
         segment_part.expected_projections = self.calculate_expected_positions(segment_part)
         
         if len(segment_part.expected_projections) == 0:
-            # Segment part is too short to contain more plants so don't split it up any more.
-            return []
+            # Segment part is too short to contain more plants.
+            return None
         
         # Remove any plants that don't fall within the valid range of the segment part.
         segment_part.possible_plants = self.filter_plants_by_segment_part(segment_part)
@@ -103,23 +110,71 @@ class RecursiveSplitPlantFilter:
         if len(segment_part.possible_plants) == 0:
             # No plants to select from so just create a plant where one is most likely to be.
             selected_plant = self.create_closest_plant(segment_part)
-            self.num_created_because_no_plants += 1
         else:
             # Figure out which possible plant is most likely to be an actual plant.
             selected_plant = self.find_most_likely_plant(segment_part)
             if selected_plant is None:
                 # None of the possible plants worked out so fall back on closest expected plant.
                 selected_plant = self.create_closest_plant(segment_part)
-                self.num_created_because_no_valid_plants += 1
-
-        first_subpart = SegmentPart(start=segment_part.start, end=selected_plant)
-        second_subpart = SegmentPart(start=selected_plant, end=segment_part.end)
+                
+        return selected_plant
+    
+    def split_segment_into_parts(self, segment_part, forward_plant, reverse_plant):
         
-        before_plants, after_plants = self.split_possible_plants_by_threshold(segment_part.possible_plants, selected_plant.projection)
-        first_subpart.possible_plants = before_plants
-        second_subpart.possible_plants = after_plants
+        if not forward_plant or not reverse_plant:
+            return [] # Can't split up any more. 
         
-        return [first_subpart, second_subpart]
+        # First change reverse plant projection to be in the forward direction to make it consistent.
+        _, reverse_plant.projection = lateral_and_projection_distance_2d(reverse_plant.position, segment_part.start.position,
+                                                                            segment_part.end.position)
+        
+        projection_difference = reverse_plant.projection - forward_plant.projection
+        
+        selected_plants = []
+        if abs(projection_difference) < 0.0001:
+            # Segments split on same plant so it doesn't matter which one we choose.
+            selected_plants = [forward_plant]
+        elif projection_difference > self.closest_plant_spacing:
+            # Normal case where forward/reverse don't overlap. We should now have 3 segments.
+            selected_plants = [forward_plant, reverse_plant]
+        else:
+            # Forward/reverse overlap.  Need to decide which one to use.
+            if forward_plant.type == 'CreatedPlant' and reverse_plant.type == 'CreatedPlant':
+                avg_position = np.mean([forward_plant.position, reverse_plant.position], axis=0)
+                avg_plant = CreatedPlant(name='plant', position=avg_position, zone=forward_plant.zone)
+                avg_plant.projection = np.mean([forward_plant.projection, reverse_plant.projection], axis=0)
+                selected_plants = [avg_plant]
+            elif forward_plant.type == 'Plant' and reverse_plant.type == 'Plant':
+                if forward_plant.penalty < reverse_plant.penalty:
+                    selected_plants = [forward_plant]
+                else:
+                    selected_plants = [reverse_plant]
+            elif forward_plant.type == 'Plant':
+                selected_plants = [forward_plant]
+            elif reverse_plant.type == 'Plant':
+                selected_plants = [reverse_plant]
+            else:
+                assert(False)
+        
+        if len(selected_plants) == 0:
+            return []
+        elif len(selected_plants) == 1:
+            selected_plant = selected_plants[0]
+            first_subpart = SegmentPart(start=segment_part.start, end=selected_plant)
+            second_subpart = SegmentPart(start=selected_plant, end=segment_part.end)
+            before_plants, after_plants = self.split_possible_plants_by_projections(segment_part.possible_plants, [selected_plant.projection])
+            first_subpart.possible_plants = before_plants
+            second_subpart.possible_plants = after_plants
+            return [first_subpart, second_subpart]
+        elif len(selected_plants) == 2:
+            first_subpart = SegmentPart(start=segment_part.start, end=selected_plants[0])
+            second_subpart = SegmentPart(start=selected_plants[0], end=selected_plants[1])
+            third_subpart = SegmentPart(start=selected_plants[1], end=segment_part.end)
+            first_subpart.possible_plants, second_subpart.possible_plants, third_subpart.possible_plants = \
+                self.split_possible_plants_by_projections(segment_part.possible_plants, [selected_plants[0].projection, selected_plants[1].projection])
+            return [first_subpart, second_subpart, third_subpart]
+        else:
+            assert(False)
     
     def create_closest_plant(self, segment_part):
         closest_expected_projection = segment_part.expected_projections[0]
@@ -137,6 +192,10 @@ class RecursiveSplitPlantFilter:
             lateral_penalty = self.calculate_lateral_penalty(plant['lateral'])
         
             projection_penalty = self.calculate_projection_penalty(segment_part.expected_projections, plant['projection'])
+            
+            if segment_part.start.type == 'RowCode':
+                # Don't weight as heavily since row codes are hand placed.
+                projection_penalty /= 3
         
             closeness_penalty = self.calculate_closeness_penalty(plant['projection'])
             
@@ -160,17 +219,34 @@ class RecursiveSplitPlantFilter:
         # this global rect will be converted to a rotated image rect later
         selected_plant.bounding_rect = best_plant['rect']
         selected_plant.projection = best_plant['projection']
-        
-        self.num_successfully_found_plants += 1
-        
+        selected_plant.penalty = best_plant['penalty']
+
         return selected_plant
             
-    def split_possible_plants_by_threshold(self, possible_plants, projection_thresh):
-            
-        before_plants = [p for p in possible_plants if p['projection'] < projection_thresh]
-        after_plants = [p for p in possible_plants if p['projection'] >= projection_thresh]
+    def split_possible_plants_by_projections(self, possible_plants, projections):
+
+        if len(projections) == 0:
+            return possible_plants
+
+        split_plants = [[] for i in range(len(projections)+1)]
         
-        return before_plants, after_plants
+        for plant in possible_plants:
+            plant_grouped = False
+            for i, projection in enumerate(projections):
+                if plant['projection'] < projection:
+                    split_plants[i].append(plant)
+                    plant_grouped = True
+                    break
+            if not plant_grouped:
+                # Plant came after all projections.
+                split_plants[-1].append(plant)
+
+        return split_plants
+
+    def split_possible_plants_between_projections(self, possible_plants, smaller_projection, larger_projection):
+        '''Return plants in possible_plants that fall between smaller and larger projections'''
+            
+        return [p for p in possible_plants if p['projection'] > smaller_projection and p['projection'] < larger_projection]
             
     def filter_plants_by_segment_part(self, segment_part):
         
@@ -185,16 +261,21 @@ class RecursiveSplitPlantFilter:
         possible_plants = sorted(possible_plants, key=lambda p: p['projection'])
         
         # Throw out any that are too close to or behind start/end code
-        if 'code' in segment_part.start.type.lower():
-            closest_at_start = self.closest_code_spacing
+        if segment_part.start.type == 'GroupCode':
+            closest_at_start = self.closest_group_code_spacing
+        elif segment_part.start.type == 'RowCode':
+            closest_at_start = self.closest_row_code_spacing 
         else:
             closest_at_start = self.closest_plant_spacing
-        if 'code' in segment_part.end.type.lower():
-            closest_at_end = segment_part.length - self.closest_code_spacing
+            
+        if segment_part.start.type == 'GroupCode':
+            closest_at_end = segment_part.length - self.closest_group_code_spacing
+        elif segment_part.start.type == 'RowCode':
+            closest_at_end = segment_part.length - self.closest_row_code_spacing 
         else:
             closest_at_end = segment_part.length - self.closest_plant_spacing
     
-        filtered_plants = [p for p in segment_part.possible_plants if p['projection'] >= closest_at_start and p['projection'] <= closest_at_end]
+        filtered_plants = [p for p in possible_plants if p['projection'] >= closest_at_start and p['projection'] <= closest_at_end]
     
         return filtered_plants
     
@@ -208,7 +289,7 @@ class RecursiveSplitPlantFilter:
             start_distance = self.expected_plant_spacing
             
         if 'code' in segment_part.end.type.lower():
-            end_distance = segment_part.length - self.closest_code_spacing
+            end_distance = segment_part.length - self.closest_group_code_spacing
         else:
             end_distance = segment_part.length - self.closest_plant_spacing
             

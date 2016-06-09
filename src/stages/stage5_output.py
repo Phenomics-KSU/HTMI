@@ -17,6 +17,7 @@ from src.stages.exit_reason import ExitReason
 from src.util.parsing import parse_survey_file
 from src.analysis.stage2_output_analysis import warn_about_missing_single_code_lengths
 from src.processing.item_processing import calculate_field_positions_and_range, all_segments_from_rows
+from src.processing.item_processing import position_difference
 from src.processing.export_results import export_group_segments, export_results
 from src.util.numbering import number_serpentine
 from src.util.survey import *
@@ -63,15 +64,28 @@ if __name__ == '__main__':
     # Now that plants are found calculate their field coordinates based on codes.
     calculate_field_positions_and_range(rows, codes, plants)
     
-    # Run spacing verification on single plants to double check no codes were missed.
+    # Shouldn't be necessary, but do it anyway.
+    print 'Sorting items by number within field.'
+    items = sorted(items, key=lambda item: item.number_within_field)
+    
+    plant_spacings = []
     if plant_spacing > 0:
+        # Run spacing verification on single plants to double check no codes were missed.
         all_segments = all_segments_from_rows(rows)
         single_segments = [segment for segment in all_segments if segment.start_code.type == 'SingleCode']
         warn_about_missing_single_code_lengths(single_segments, plant_spacing)
     
-    # Shouldn't be necessary, but do it anyway.
-    print 'Sorting items by number within field.'
-    items = sorted(items, key=lambda item: item.number_within_field)
+        # Run spacing verification on regular plants.
+        last_plant = None
+        for item in items:
+            if item.type not in ['Plant', 'CreatedPlant']:
+                continue
+            if last_plant and last_plant.row == item.row:
+                spacing = position_difference(last_plant.position, item.position)
+                if spacing > plant_spacing * 1.5:
+                    print "{} between {} and {}".format(spacing, last_plant.number_within_field, item.number_within_field)
+                plant_spacings.append(spacing)
+            last_plant = item
     
     # generate a sub-directory in specified output directory to house all output files.
     out_directory = os.path.join(out_directory, time.strftime('results-%Y%m%d-%H%M%S/'))
@@ -119,3 +133,12 @@ if __name__ == '__main__':
     all_segments = all_segments_from_rows(rows)
     export_group_segments(all_segments, segment_results_filepath)
     print "Exported segment results to " + segment_results_filepath
+
+    if len(plant_spacings) > 0:
+        avg_results_filename = time.strftime("plant_spacings-%Y%m%d-%H%M%S.csv")
+        avg_results_filepath = os.path.join(out_directory, avg_results_filename)
+        with open(avg_results_filepath, 'wb') as spacingfile:
+            csv_writer = csv.writer(spacingfile)
+            for spacing in plant_spacings:
+                csv_writer.writerow([spacing])
+            

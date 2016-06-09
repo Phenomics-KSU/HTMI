@@ -177,11 +177,13 @@ def extract_global_plants_from_images(plants, geo_images, out_directory):
         global_bounding_rect = plant.bounding_rect
         if global_bounding_rect is None:
             continue
+        found_in_image = False 
         for k, geo_image in enumerate(geo_images):
             from src.util.clustering import rect_to_image
             image_rect = rect_to_image(global_bounding_rect, geo_image)
             x, y = image_rect[0]
             if x > 0 and x < geo_image.width and y > 0 and y < geo_image.height:
+                found_in_image = True
                 if not plant.parent_image_filename.strip():
                     plant.bounding_rect = image_rect
                     plant.parent_image_filename = geo_image.file_name
@@ -203,4 +205,6 @@ def extract_global_plants_from_images(plants, geo_images, out_directory):
                     
                     plant_image_fname = postfix_filename(geo_image.file_name, "_{}".format(plant.type))
                     plant.image_path = ImageWriter.save_normal(plant_image_fname, plant_img)
-    
+        if not found_in_image:
+            # Can't convert global rect to a rotated image rect so remove it to be consistent.
+            plant.bounding_rect = None

@@ -40,7 +40,7 @@ def export_results(items, rows, out_filepath):
             
             has_group = hasattr(item, 'group') and item.group is not None
             
-            if has_group:
+            if has_group and item.type != 'RowCode':
                 item_id = item.group.id
                 alternate_id = item.group.alternate_id
             else:

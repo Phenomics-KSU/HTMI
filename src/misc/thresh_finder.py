@@ -12,7 +12,10 @@ def nothing(x):
     #mask_open = cv2.morphologyEx(thresh_image, cv2.MORPH_OPEN, kernel)
     #thresh_image = cv2.dilate(mask_open, kernel, iterations = 1)
     
-    #thresh_image = cv2.adaptiveThreshold(gray_image,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,thresh,2)
+    if thresh > 5 and thresh % 2 == 1:
+        thresh_image = cv2.adaptiveThreshold(gray_image,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,thresh,2)
+        #thresh_image = cv2.adaptiveThreshold(gray_image,255,cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY,thresh,2)
+        #thresh_image = cv2.adaptiveThreshold(gray_image,255,cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV,thresh,2)
     
     cv2.imshow("result", thresh_image)
 
@@ -22,10 +25,10 @@ cv2.namedWindow('result', cv2.CV_WINDOW_AUTOSIZE)
 # Creating track bar
 cv2.createTrackbar('thresh', 'result', 0,255,nothing)
 
-image = cv2.imread(r"L:\iwg\day1\images\CAM_0771708037_20151013_233318_C01_8900.JPG")
+image = cv2.imread(r"L:\iwg\examples\glareexample\NonGlare.JPG")
 
 gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-gray_image = cv2.resize(gray_image, (0,0), fx=0.1, fy=0.1) 
+gray_image = cv2.resize(gray_image, (0,0), fx=0.8, fy=0.8) 
 
 cv2.imshow("result", gray_image)
 
