@@ -16,6 +16,7 @@ class FieldItem(object):
         self._number_within_field = number_within_field # Number of item within entire field.  
         self._number_within_row = number_within_row # Number of item within current row.  Measured from range = 0 side of field.
         self._other_items = [] # same field item from different images.
+        self._is_gap_item = False # if true then any group starting with this item (e.g. a code) shouldn't contain any plants.
         
         # Image properties.  May be empty/None if item wasn't found in image.
         self.image_path = image_path # Full path where cropped out image of field item is found.
@@ -87,6 +88,16 @@ class FieldItem(object):
     def type(self):
         '''Return type of item (ie plant, code, gap, etc). No need for subclass to override this, it will return name of child class already.'''
         return self.__class__.__name__
+        
+    @property
+    def is_gap_item(self):
+        return self._is_gap_item
+    
+    @is_gap_item.setter
+    def is_gap_item(self, new_value):
+        self._is_gap_item = new_value
+        for item in self.other_items:
+            item.is_gap_item = new_value
         
     @property
     def position(self):

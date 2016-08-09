@@ -2,12 +2,13 @@
 
 import os
 import math
+import utm
 from collections import namedtuple
 
 # Project imports
 from src.data.geo_image import GeoImage
     
-def parse_geo_file(image_geo_file, provided_resolution, camera_rotation):
+def parse_geo_file(image_geo_file, provided_resolution, camera_height):
     '''Parse geo file and return list of GeoImage instances.'''
     images = []
     with open(image_geo_file, 'r') as geofile:
@@ -20,22 +21,35 @@ def parse_geo_file(image_geo_file, provided_resolution, camera_rotation):
                 continue
             try:
                 image_time = float(fields[0])
-                image_name = fields[1]
-                x = float(fields[2])
-                y = float(fields[3])
-                z = float(fields[4])
-                zone = fields[5]
-                roll = float(fields[6])
-                pitch = float(fields[7])
-                heading = math.degrees(float(fields[8]))
+                lat = float(fields[1])
+                lon = float(fields[2])
+                alt = float(fields[3])
+                roll = float(fields[4])
+                pitch = float(fields[5])
+                yaw = float(fields[6])
+                image_name = fields[7]
                 # Make sure filename doesn't have extension, we'll add it from image that we're processing.
                 image_name = os.path.splitext(image_name)[0]
+                
+                # Make sure position is valid.
+                if math.isnan(lat) or math.isnan(lon):
+                    print 'Image {} doesnt have valid position so it wont be used.'.format(image_name)
+                    continue
+                
+                # Roll and pitch are optional, but every image we use should have a yaw. If not then skip it.
+                if math.isnan(yaw):
+                    print 'Image {} doesnt have yaw (heading) so it wont be used.'.format(image_name)
+                    continue
+                
+                # Convert WGS84 to UTM.
+                easting, northing, zone_num, zone_letter = utm.from_latlon(lat, lon)
+                
             except (IndexError, ValueError) as e:
                 print 'Bad line: {}'.format(line) 
                 raise
                  
-            geo_image = GeoImage(file_name=image_name, image_time=image_time, position=(x, y, z), zone=zone,
-                                 heading_degrees=heading, resolution=provided_resolution, camera_rotation_degrees=camera_rotation)
+            geo_image = GeoImage(file_name=image_name, image_time=image_time, position=(easting, northing, alt), zone=str(zone_num)+zone_letter,
+                                 roll_degrees=roll, pitch_degrees=pitch, heading_degrees=yaw, resolution=provided_resolution, cam_height=camera_height)
             images.append(geo_image)
             
     return images
@@ -76,9 +90,13 @@ def parse_code_listing_file(group_filename):
 
 def parse_code_modifications_file(code_modifications_filepath):
     '''Parse file and return list of named tuples for difference modification types.'''
+    
     AddImagedCode = namedtuple('AddImagedCode', 'id parent_filename x_pixels y_pixels')
     AddSurveyedCode = namedtuple('AddSurveyedCode', 'id x y z zone')
     DeleteCode = namedtuple('DeleteCode', 'code_id')
+    ChangeCodeName = namedtuple('ChangeCodeName', 'original_code_id new_code_id')
+    AddGapCode = namedtuple('AddGapCode', 'code_id')
+    
     code_modifications = []
     with open(code_modifications_filepath, 'r') as code_modifications_file:
         lines = code_modifications_file.readlines()
@@ -104,8 +122,15 @@ def parse_code_modifications_file(code_modifications_filepath):
                     zone = fields[5]
                     code_modifications.append(AddSurveyedCode(id, x, y, z, zone))
                 elif modification_type == 'delete_code':
-                    id = fields[1]
-                    code_modifications.append(DeleteCode(id))
+                    code_id = fields[1]
+                    code_modifications.append(DeleteCode(code_id))
+                elif modification_type == 'change_code_name':
+                    original_id = fields[1]
+                    new_id = fields[2]
+                    code_modifications.append(ChangeCodeName(original_id, new_id))
+                elif modification_type == 'add_gap_code':
+                    code_id = fields[1]
+                    code_modifications.append(AddGapCode(code_id))
                 else:
                     print "Unsupported modification {}".format(modification_type)
             except (IndexError, ValueError) as e:

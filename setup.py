@@ -15,5 +15,5 @@ if __name__ == "__main__":
           author_email='',
           license='TODO',
           packages=['src'],
-          install_requires=[],
+          install_requires=['utm'],
           zip_safe=False)

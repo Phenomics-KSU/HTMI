@@ -52,7 +52,7 @@ if __name__ == '__main__':
     if sum_separation_count > 0:
         average_separation = sum_separation / sum_separation_count
                 
-    print "From average position largest separation is {} and average is {}".format(largest_separation, average_separation)
+    print "From average position largest separation is {} and average is {} meters".format(largest_separation, average_separation)
 
     if not os.path.exists(out_directory):
         os.makedirs(out_directory)

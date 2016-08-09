@@ -31,10 +31,12 @@ def stage4_locate_plants(**args):
     max_plant_size = float(args.pop('max_plant_size')) / 100.0 # convert to meters
     max_plant_part_distance = float(args.pop('max_plant_part_distance')) / 100.0 # convert to meters
     plant_spacing = float(args.pop('plant_spacing')) / 100.0 # convert to meters
-    code_spacing = float(args.pop('code_spacing')) / 100.0 # convert to meters
+    start_code_spacing = float(args.pop('start_code_spacing')) / 100.0 # convert to meters
+    end_code_spacing = float(args.pop('end_code_spacing')) / 100.0 # convert to meters
     single_max_dist = float(args.pop('single_max_dist')) / 100.0 # convert to meters
     stick_multiplier = float(args.pop('stick_multiplier'))
     leaf_multiplier = float(args.pop('leaf_multiplier'))
+    tag_multiplier = float(args.pop('tag_multiplier'))
     lateral_penalty = float(args.pop('lateral_penalty'))
     projection_penalty = float(args.pop('projection_penalty'))
     closeness_penalty = float(args.pop('closeness_penalty'))
@@ -58,8 +60,8 @@ def stage4_locate_plants(**args):
     all_segments = all_segments_from_rows(rows)
 
     # Use different filters for normal vs. single segments
-    normal_plant_filter = RecursiveSplitPlantFilter(code_spacing, plant_spacing, lateral_penalty, projection_penalty, 
-                                                    closeness_penalty, stick_multiplier, leaf_multiplier)
+    normal_plant_filter = RecursiveSplitPlantFilter(start_code_spacing, end_code_spacing, plant_spacing, lateral_penalty, projection_penalty, 
+                                                    closeness_penalty, stick_multiplier, leaf_multiplier, tag_multiplier)
     closest_plant_filter = ClosestSinglePlantFilter(single_max_dist)
     
     # Use a spacing filter for detecting and fixing any mis-chosen plants.
@@ -72,10 +74,28 @@ def stage4_locate_plants(**args):
         image_out_directory = None
     
     for seg_num, segment in enumerate(all_segments):
+    
+        #if segment.start_code.name != 'TBJ':
+        #    continue
         
         print "Processing segment {} [{}/{}] with {} images".format(segment.start_code.name, seg_num+1, len(all_segments), len(segment.geo_images))
+
+        if segment.row_number > 6:
+            for geo_image in segment.geo_images:
+                try:
+                    del geo_image.items['stick_parts']
+                    del geo_image.items['leaves']
+                except KeyError:
+                    pass
     
-        # Cluster together leaves and stick parts into possible plants
+        try:
+            if segment.start_code.is_gap_item:
+                print "Skipping segment since its start code is listed as a gap."
+                continue
+        except AttributeError:
+            pass # This used to not be supported so it's not a big deal if segment is missing property 
+            
+        # Cluster together leaves, stick parts and tags into possible plants
         possible_plants = []
         for geo_image in segment.geo_images:
             if 'possible_plants' in geo_image.items:
@@ -99,11 +119,15 @@ def stage4_locate_plants(**args):
         last_plant = None
         for plant in possible_plants:  
             stick_parts = [part for part in plant['items'] if part['item_type'] == 'stick_part']
-            if len(stick_parts) > 0:
+            plant_tags = [tag for tag in plant['items'] if part['item_type'] == 'tag']
+            if len(plant_tags) > 0:
+                # Use position of tag for plant position.
+                positioning_rect = merge_corner_rectangles([tag['rect'] for tag in plant_tags])
+            elif len(stick_parts) > 0:
                 # Use blue stick parts for position
                 positioning_rect = merge_corner_rectangles([part['rect'] for part in stick_parts])
             else:
-                # No blue sticks so just use entire plant
+                # No tags or blue sticks so just use entire plant
                 positioning_rect = plant['rect']
             if 'image_altitude' in plant:
                 altitude = plant['image_altitude']
@@ -173,10 +197,12 @@ if __name__ == '__main__':
     parser.add_argument('max_plant_size', help='maximum size of a plant in centimeters')
     parser.add_argument('max_plant_part_distance', help='maximum distance (in centimeters) between parts of a plant.')
     parser.add_argument('plant_spacing', help='expected distance (in centimeters) between consecutive plant')
-    parser.add_argument('code_spacing', help='expected distance (in centimeters) before or after group or row codes')
+    parser.add_argument('start_code_spacing', help='expected distance (in centimeters) between segment start code and first plant')
+    parser.add_argument('end_code_spacing', help='expected distance (in centimeters) between last plant in segment and the next code')
     parser.add_argument('single_max_dist', help='maximum distance (in centimeters) that a plant can be separate from a single code')
     parser.add_argument('-sm', dest='stick_multiplier', default=2, help='Higher value places more emphasis on having a blue stick.')
     parser.add_argument('-lm', dest='leaf_multiplier', default=1.5, help='Higher value places more emphasis on having one or more leaves.')
+    parser.add_argument('-tm', dest='tag_multiplier', default=4, help='Higher value places more emphasis on having a tag.')
     parser.add_argument('-lp', dest='lateral_penalty', default=1, help='Higher value penalizes larger values from projected line in orthogonal direction.')
     parser.add_argument('-pp', dest='projection_penalty', default=1, help='Higher value penalizes larger values along projected line.')
     parser.add_argument('-cp', dest='closeness_penalty', default=1, help='Higher value penalizes distances from current item.')

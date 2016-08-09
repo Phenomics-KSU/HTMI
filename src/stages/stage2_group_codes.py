@@ -23,7 +23,7 @@ def stage2_group_codes(**args):
     input_directory = args.pop('input_directory')
     field_direction = float(args.pop('field_direction'))
     output_directory = args.pop('output_directory')
-    row_labeling_scheme = int(args.pop('row_labeling_scheme'))
+    num_rows_per_pass = int(args.pop('num_rows_per_pass'))
     code_list_filepath = args.pop('code_list_filepath')
     code_modifications_filepath = args.pop('code_modifications_filepath')
     
@@ -56,6 +56,7 @@ def stage2_group_codes(**args):
     group_codes = [code for code in merged_codes if code.type.lower() == 'groupcode']
     single_codes = [code for code in merged_codes if code.type.lower() == 'singlecode']
         
+    '''
     if row_labeling_scheme == 0:
         
         grouped_row_codes = group_row_codes(row_codes)
@@ -80,10 +81,19 @@ def stage2_group_codes(**args):
         
         rows, field_passes = create_rows_and_field_passes_by_pass_codes(grouped_row_codes, field_direction)
         
-    else:
-        print "Invalid row labeling scheme."
-        return ExitReason.bad_arguments
+    elif row_labeling_scheme == 2:
+    '''
     
+    grouped_row_codes = group_row_codes_by_row_name(row_codes)
+
+    if len(grouped_row_codes) == 0:
+        print "No row codes found. Exiting"
+        return ExitReason.no_rows
+
+    display_row_info(grouped_row_codes)
+    
+    rows, field_passes = create_rows_and_field_passes_by_row_codes(grouped_row_codes, field_direction, num_rows_per_pass)
+
     if len(rows) == 0:
         print "No complete rows found.  Exiting."
         return ExitReason.no_rows
@@ -109,7 +119,7 @@ def stage2_group_codes(**args):
         return ExitReason.operation_not_supported
     
     print "Forming groups"
-    groups = complete_groups(end_segments, single_segments, field_passes)
+    groups = complete_groups(end_segments, single_segments, field_passes, num_rows_per_pass)
         
     handle_single_segments(single_segments, groups)
     
@@ -143,7 +153,7 @@ if __name__ == '__main__':
     parser.add_argument('input_directory', help='directory containing pickled files from previous stage.')
     parser.add_argument('field_direction', help='Planting angle of entire field.  0 degrees East and increases CCW.')
     parser.add_argument('output_directory', help='where to write output files')
-    parser.add_argument('row_labeling_scheme', help='if 0 then uses simple row number, if 1 then uses pass numbering with St/En and L/R in row codes')
+    parser.add_argument('num_rows_per_pass', help='how many rows were planted in each field pass.')
     parser.add_argument('-cl', dest='code_list_filepath', default='none', help='Filepath to code list CSV file. If 3 columns then must be code, max plants, alternate_ids. If 2 columns then must exclude alternate ids.')
     parser.add_argument('-cm', dest='code_modifications_filepath', default='none',  help='Filepath to modifications CSV file to add, delete, change existing codes.')
 

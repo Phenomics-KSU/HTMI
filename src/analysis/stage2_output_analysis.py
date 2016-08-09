@@ -26,9 +26,10 @@ def make_code_listings_unique(code_listings):
             else:
                 print "Two different entries with id {}".format(id)
                 print listings
-            unique_code_listings_list.append(listings[0])
-        else: # just one unique info listing
-            unique_code_listings_list.append(listings[0])
+            
+        # Always append first listing.  If there's duplicates the others will be ignored.
+        unique_code_listings_list.append(listings[0])
+            
     return unique_code_listings_list
             
 def check_code_precision(merged_codes):
@@ -88,10 +89,11 @@ def warn_about_bad_group_lengths(groups, spacing_between_plants):
         if len(group.segments) > 1:
             # Give a little more wiggle room if there's multiple segments
             max_length += spacing_between_plants * 5
-            continue # temporary, just want to look at single segments
+            #continue # temporary, just want to look at single segments
         
         if actual_length > max_length:
-            print "Group with start code {} is {} meters too long.".format(group.id, abs(length_difference))
+            length_percentage = abs(length_difference)/expected_length*100 if expected_length > 0 else float('NaN')
+            print "Group with start code {} is {:.2f} meters ({:.1f}%) too long.".format(group.id, abs(length_difference), length_percentage)
             for k, segment in enumerate(group.segments):
                 print "Segment {} starts with {} and ends with {}".format(k, segment.start_code.name, segment.end_code.name)
                 print "{} to {}".format(segment.start_code.parent_image_filename, segment.end_code.parent_image_filename)

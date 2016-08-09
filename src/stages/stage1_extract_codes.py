@@ -34,8 +34,8 @@ def stage1_extract_codes(**args):
     code_min_size = float(args.pop('code_min_size'))
     code_max_size = float(args.pop('code_max_size'))
     provided_resolution = float(args.pop('resolution'))
+    camera_height = float(args.pop('camera_height'))
     use_marked_image = args.pop('marked_image').lower() == 'true'
-    camera_rotation = int(args.pop('camera_rotation'))
     debug_start = args.pop('debug_start')
     debug_stop = args.pop('debug_stop')
 
@@ -54,10 +54,9 @@ def stage1_extract_codes(**args):
     if provided_resolution <= 0:
         print "\nError: Resolution must be greater than zero."
         return ExitReason.bad_arguments
-        
-    possible_camera_rotations = [0, 90, 180, 270]
-    if camera_rotation not in possible_camera_rotations:
-        print "Error: Camera rotation {} invalid.  Possible choices are {}".format(camera_rotation, possible_camera_rotations)
+    
+    if camera_height <= 0:
+        print "\nError: Specified camera height must be greater than zero."
         return ExitReason.bad_arguments
         
     image_filenames = list_images(image_directory, ['tiff', 'tif', 'jpg', 'jpeg', 'png'])
@@ -68,7 +67,7 @@ def stage1_extract_codes(**args):
     
     print "\nFound {} images to process".format(len(image_filenames))
     
-    geo_images = parse_geo_file(image_geo_file, provided_resolution, camera_rotation)
+    geo_images = parse_geo_file(image_geo_file, provided_resolution, camera_height)
             
     print "Parsed {} geo images".format(len(geo_images))
     
@@ -158,8 +157,8 @@ if __name__ == '__main__':
     parser.add_argument('code_min_size', help='Minimum side length of code item in centimeters. Must be > 0')
     parser.add_argument('code_max_size', help='Maximum side length of code item in centimeters. Must be > 0')
     parser.add_argument('-rs', dest='resolution', default=0, help='Image resolution in centimeter/pixel.')
+    parser.add_argument('-ch', dest='camera_height', default=0, help='Average camera height above ground in centimeters.')
     parser.add_argument('-mk', dest='marked_image', default='false', help='If true then will output marked up image.  Default false.')
-    parser.add_argument('-cr', dest='camera_rotation', default=0, help='Camera rotation (0, 90, 180, 270).  0 is camera top forward and increases counter-clockwise.' )
     parser.add_argument('-debug_start', dest='debug_start', default='__none__', help='Substring in image name to start processing at.')
     parser.add_argument('-debug_stop', dest='debug_stop', default='__none__', help='Substring in image name to stop processing at.')
     

@@ -27,13 +27,11 @@ class CodeFinder:
         
         # Threshold grayscaled image to make white QR codes stands out.
         #gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        #_, thresh_image = cv2.threshold(gray_image, 160, 255, 0)
+        #_, mask = cv2.threshold(gray_image, 100, 255, 0)
         
-        # Convert Blue-Green-Red color space to HSV
         hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        
-        lower_white = np.array([0, 0, 40], np.uint8)
-        upper_white = np.array([179, 30, 255], np.uint8)
+        lower_white = np.array([0, 0, 160], np.uint8)
+        upper_white = np.array([179, 65, 255], np.uint8)
         mask = cv2.inRange(hsv_image, lower_white, upper_white)
         
         # Find outer contours (edges) and 'approximate' them to reduce the number of points along nearly straight segments.
@@ -156,14 +154,14 @@ def create_qr_code(qr_data):
         
     if len(qr_data) == 0:
         qr_data = None
-    elif qr_data[0].lower() == 'k':
-        qr_item = SingleCode(name = qr_data)
-    elif qr_data[-3:-1].lower() in ['st', 'en']: 
+    #elif qr_data[0].lower() == 'k':
+    #    qr_item = SingleCode(name = qr_data)
+    elif qr_data[-2:].lower() in ['st', 'en']: 
         qr_item = RowCode(name = qr_data)
-        qr_item.row = int(qr_data[:3])
-    elif qr_data.isdigit():
-        qr_item = GroupCode(name = qr_data) 
+        qr_item.row = int(qr_data[:-2])
     else:
-        qr_item = None
+        qr_item = GroupCode(name = qr_data)
+    #else:
+    #    qr_item = None
         
     return qr_item

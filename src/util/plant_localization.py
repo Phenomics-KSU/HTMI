@@ -30,15 +30,17 @@ class SegmentPart:
         
 class RecursiveSplitPlantFilter:
     
-    def __init__(self, code_spacing, plant_spacing, lateral_ps=1, projection_ps=1,
-                 closeness_ps=1, stick_multiplier=2, leaf_multiplier=1.5):
+    def __init__(self, start_code_spacing, end_code_spacing, plant_spacing, lateral_ps=1, projection_ps=1,
+                 closeness_ps=1, stick_multiplier=2, leaf_multiplier=1.5, tag_multiplier=4):
         '''Spacing distances (in centimeters) are expected values'''
-        self.expected_code_spacing = code_spacing
+        self.expected_start_code_spacing = start_code_spacing
+        self.expected_end_code_spacing = end_code_spacing
         self.expected_plant_spacing = plant_spacing
         
         # Allow row codes to be much closer to plants since they're hand placed.
-        self.closest_group_code_spacing = code_spacing / 2.0
-        self.closest_row_code_spacing = code_spacing / 8.0
+        closer_code_spacing = min(self.expected_start_code_spacing, self.expected_end_code_spacing)
+        self.closest_group_code_spacing = closer_code_spacing / 2.0
+        self.closest_row_code_spacing = closer_code_spacing / 8.0
         self.closest_plant_spacing = plant_spacing / 1.5
         
         self.num_successfully_found_plants = 0
@@ -50,6 +52,7 @@ class RecursiveSplitPlantFilter:
         self.closeness_penalty_scale = closeness_ps
         self.stick_multiplier = max(1, stick_multiplier)
         self.leaf_multiplier = max(1, leaf_multiplier)
+        self.tag_multiplier = max(1, tag_multiplier)
         
     def locate_actual_plants_in_segment(self, possible_plants, whole_segment):
     
@@ -284,7 +287,7 @@ class RecursiveSplitPlantFilter:
         # Calculate expected positions.
         expected_distances = []
         if 'code' in segment_part.start.type.lower():
-            start_distance = self.expected_code_spacing
+            start_distance = self.expected_start_code_spacing
         else:
             start_distance = self.expected_plant_spacing
             
@@ -358,16 +361,18 @@ class RecursiveSplitPlantFilter:
     
     def calculate_plant_part_confidence(self, plant):
         
-        # Assign plants confidence based on blue sticks vs plants
+        # Assign plants confidence based on blue sticks vs tags vs leaves
         if 'items' in plant:
             plant_component_types = [item['item_type'] for item in plant['items']]
         else:
             plant_component_types = [plant['item_type']]
         contains_blue_stick = 'stick_part' in plant_component_types
         contains_leaf = 'leaf' in plant_component_types
+        contains_tag = 'tag' in plant_component_types
         blue_stick_multiplier = self.stick_multiplier if contains_blue_stick else 1
         leaf_multiplier = self.leaf_multiplier if contains_leaf else 1
-        plant_part_confidence = 1 * blue_stick_multiplier * leaf_multiplier
+        tag_multiplier = self.tag_multiplier if contains_tag else 1
+        plant_part_confidence = blue_stick_multiplier * leaf_multiplier * tag_multiplier
             
         return plant_part_confidence
     

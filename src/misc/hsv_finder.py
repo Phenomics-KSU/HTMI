@@ -2,7 +2,14 @@ import cv2
 import numpy as np
 import sys
 
+hsv = None
+
 def nothing(x):
+    
+    if hsv is None:
+        print 'no hsv image'
+        return
+    
     # get info from track bar and apply to result
     hlow = cv2.getTrackbarPos('hlow','result')
     slow = cv2.getTrackbarPos('slow','result')
@@ -22,7 +29,8 @@ def nothing(x):
     
     cv2.imshow("result", mask)
 
-image = cv2.imread(r"L:\iwg\day2\images\CAM_0771708037_20151014_204432_C01_2217.JPG", cv2.CV_LOAD_IMAGE_COLOR)
+# "L:\sunflower\PCRT_20160001_20160614_020826\data_files\cam-left_CAM_1\CAM_1_20160614_074718_IMG_617.JPG"
+image = cv2.imread(r"L:\sunflower\stage3_output\images\CAM_1_20160617_055716_IMG_112_marked.JPG", cv2.CV_LOAD_IMAGE_COLOR)
 
 if image is None:
     print "Image is none"
@@ -36,8 +44,8 @@ cv2.namedWindow('result', cv2.CV_WINDOW_AUTOSIZE)
 # Starting with 100's to prevent error while masking
 #hlow,slow,vlow = 67,15,5
 #hhigh,shigh,vhigh = 142,255,255
-hlow,slow,vlow = 30,80,20
-hhigh,shigh,vhigh = 90,255,255
+hlow,slow,vlow = 0,00,160
+hhigh,shigh,vhigh = 179,65,255
 
 # Creating track bar
 cv2.createTrackbar('hlow', 'result', 0,179,nothing)

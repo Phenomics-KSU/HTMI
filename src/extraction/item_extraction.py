@@ -26,20 +26,21 @@ def locate_items(locators, geo_image, image, marked_image):
 
     return field_items
     
-def extract_items(field_items, geo_image, image, marked_image):
+def extract_items(field_items, geo_image, image, marked_image, filter_edge_items=True):
     '''Extract items into separate images. Return updated list of field items.'''
 
-    # Filter out any items that touch the image border since it likely doesn't represent entire item.
-    items_without_border_elements = []
-    for item in field_items:
-        if touches_image_border(item, geo_image):
-            # Mark as special color to show user why it wasn't included.
-            if marked_image is not None:
-                dark_orange = (0, 140, 255) # dark orange
-                draw_rect(marked_image, item.bounding_rect, dark_orange, thickness=2)
-        else:
-            items_without_border_elements.append(item)
-    field_items = items_without_border_elements
+    if filter_edge_items:
+        # Filter out any items that touch the image border since it likely doesn't represent entire item.
+        items_without_border_elements = []
+        for item in field_items:
+            if touches_image_border(item, geo_image):
+                # Mark as special color to show user why it wasn't included.
+                if marked_image is not None:
+                    dark_orange = (0, 140, 255) # dark orange
+                    draw_rect(marked_image, item.bounding_rect, dark_orange, thickness=2)
+            else:
+                items_without_border_elements.append(item)
+        field_items = items_without_border_elements
 
     # Extract field items into separate image
     for item in field_items:
@@ -131,19 +132,94 @@ def extract_rotated_image(image, rotated_rect, pad, trim=0):
     
     return extract_square_image(masked_image, trimmed_rect, pad, rotated=True)
     
+def calculate_pixel_position_3d(x, y, geo_image):
+    '''Return (x,y,z) position of pixel within geo image.'''
+    
+    # Change image frame from origin at top left x increase to right y increase down
+    # to origin at center X increases upwards and y increases left.
+    y1 = -x + geo_image.size[0] / 2
+    x1 = -y + geo_image.size[1] / 2
+
+    # Convert from pixels to meters
+    x1 *= geo_image.resolution / 100
+    y1 *= geo_image.resolution / 100
+    
+    # Add in z component also in meters. Negative since item is below camera.
+    z1 = -geo_image.camera_height / 100 
+    
+    # Reverse all angles since we're going from body (image) frame to world frame.
+    r = math.radians(-geo_image.roll_degrees)
+    p = math.radians(-geo_image.pitch_degrees)
+    y = math.radians(-geo_image.heading_degrees)
+    
+    # for testing
+    #ro = r
+    #po = p
+    #r = -po
+    #p = ro 
+    #fsaf
+    
+    # For testing
+    #x1 = 0
+    #y1 = 0
+    #z1 = -1  
+    #r = math.radians(-0)
+    #p = math.radians(-10)
+    #y = math.radians(-90)
+    
+    if math.isnan(r):
+        r = 0
+    if math.isnan(p):
+        p = 0
+    if math.isnan(y):
+        raise Exception('Must have valid yaw.')
+    
+    yt = np.array([[math.cos(y),   math.sin(y), 0],
+                   [-math.sin(y),  math.cos(y), 0],
+                   [    0,             0,       1]])
+    
+    pt = np.array([[math.cos(p),  0,  -math.sin(p)],
+                   [    0,        1,        0     ],
+                   [math.sin(p),  0,   math.cos(p)]])
+    
+    rt = np.array([[    1,      0,             0      ],
+                   [    0,   math.cos(r),  math.sin(r)],
+                   [    0,  -math.sin(r),  math.cos(r)]])
+    
+    # Apply roll, then pitch then yaw to go from body frame to world frame.
+    transformation = yt.dot(pt).dot(rt)
+
+    # Convert relative body coordinates to easting, northing coordinates.
+    v2 = transformation.dot(np.array([x1, y1, z1]))
+    
+    east_offset = v2[0]
+    north_offset = v2[1]
+    z_meters = v2[2]
+    
+    #print v2
+    
+    return (geo_image.position[0] + east_offset, geo_image.position[1] + north_offset, geo_image.position[2] + z_meters)
+    
 def calculate_pixel_position(x, y, geo_image):
     '''Return (x,y,z) position of pixel within geo image.'''
-    # Reference x y from center of image instead of top left corner.
+    
+    # Reference x y from center of image instead of top left corner and flip y so it increases towards top of image.
     x = x - geo_image.size[0] / 2
     y = -y + geo_image.size[1] / 2
-    # Rotate x y from image frame to easting-northing frame.
-    # A camera rotation of 0 corresponds to top of image being forward so need to subtract 90 to get positive x being top of image.
-    heading = math.radians(geo_image.heading_degrees + geo_image.camera_rotation_degrees - 90)
-    east_offset = math.cos(heading) * x - math.sin(heading) * y
-    north_offset = math.sin(heading) * x + math.cos(heading) * y
+    
+    # Rotate x y from image frame to easting-northing world frame.
+    # Here we calculate the angle (theta) to go from the image to the world frame. This uses a positive (CCW) frame
+    # rotation (with point fixed) which is equivalent to negative (CW) point rotation (with frame fixed).  
+    # The image heading will rotate the top of the image to be east, but we need the image 'x' axis to be east so we
+    # need to add 90 degrees to rotate the frame far enough.  So this is two frame rotations in one.
+    theta = math.radians(-geo_image.heading_degrees + 90)
+    east_offset = math.cos(theta) * x + math.sin(theta) * y
+    north_offset = -math.sin(theta) * x + math.cos(theta) * y
+    
     # Convert offsets from pixels to meters.
     east_offset *= geo_image.resolution / 100
     north_offset *= geo_image.resolution / 100
+    
     # Take into account camera height.  Negative since item is below camera.
     z_meters = 0 # -geo_image.camera_height / 100
     
@@ -151,16 +227,24 @@ def calculate_pixel_position(x, y, geo_image):
 
 def calculate_position_pixel(x, y, geo_image):
     '''Return (x,y) pixel location of specified (x,y) position within geo image.'''
+    
     east_offset = x - geo_image.position[0]
     north_offset = y - geo_image.position[1]
+    
     # Convert offset from meters to pixels
     east_offset /= (geo_image.resolution / 100)
     north_offset /= (geo_image.resolution / 100)
+    
     # Rotate east/north offsets into image coordinate frame where (0,0) is in middle of image and y increases upwards.
-    heading = math.radians(geo_image.heading_degrees + geo_image.camera_rotation_degrees - 90)
-    x = math.cos(heading) * east_offset + math.sin(heading) * north_offset
-    y = - math.sin(heading) * east_offset + math.cos(heading) * north_offset
-    # Reference x y from top left corner instead of center of image.
+    # Here we calculate the angle (theta) to go from the world frame to the image frame. This uses a positive (CCW) frame
+    # rotation (with point fixed) which is equivalent to negative (CW) point rotation (with frame fixed).  
+    # The image heading will rotate the east part of the pixel to be at the top of the image, but we need the image 'x' axis
+    # to be out the right so we need to subtract 90 degrees account for that.  So this is two frame rotations in one.
+    theta = math.radians(geo_image.heading_degrees - 90)
+    x = math.cos(theta) * east_offset + math.sin(theta) * north_offset
+    y = -math.sin(theta) * east_offset + math.cos(theta) * north_offset
+    
+    # Reference x y from top left corner instead of center of image and make y increase downwards.
     x = x + geo_image.size[0] / 2
     y = -y + geo_image.size[1] / 2
 
@@ -169,7 +253,7 @@ def calculate_position_pixel(x, y, geo_image):
 def calculate_item_position(item, geo_image):
     '''Return (x,y,z) position of item within geo image.'''
     x, y = rectangle_center(item.bounding_rect)
-    return calculate_pixel_position(x, y, geo_image)
+    return calculate_pixel_position_3d(x, y, geo_image)
     
 def extract_global_plants_from_images(plants, geo_images, out_directory):
     

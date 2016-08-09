@@ -52,7 +52,7 @@ def process_geo_image(geo_image, locators, image_directory, out_directory, use_m
         
     return image_items
 
-def process_geo_image_to_find_plant_parts(geo_image, leaf_finder, stick_finder, out_directory, use_marked_image):
+def process_geo_image_to_find_plant_parts(geo_image, leaf_finder, stick_finder, tag_finder, out_directory, use_marked_image):
     '''Return list of leaves and sticks found inside geo image.'''
 
     image = cv2.imread(geo_image.file_path, cv2.CV_LOAD_IMAGE_COLOR)
@@ -75,14 +75,22 @@ def process_geo_image_to_find_plant_parts(geo_image, leaf_finder, stick_finder, 
         marked_image = image.copy()
     
     leaves = leaf_finder.locate(geo_image, image, marked_image)
-    sticks = stick_finder.locate(geo_image, image, marked_image)
+    if stick_finder is not None:
+        sticks = stick_finder.locate(geo_image, image, marked_image)
+    else:
+        sticks = []
+        
+    if tag_finder is not None:
+        tags = tag_finder.locate(geo_image, image, marked_image)
+    else:
+        tags = []
 
     if marked_image is not None:
         marked_image_filename = postfix_filename(geo_image.file_name, '_marked')
         marked_image_path = os.path.join(out_directory, marked_image_filename)
         cv2.imwrite(marked_image_path, marked_image)
         
-    return leaves, sticks
+    return leaves, sticks, tags
 
 def all_items(geo_images):
     '''Return single list of all items found within geo images.'''
@@ -188,8 +196,10 @@ def is_same_item(item1, item2, max_position_difference):
     if 'code' in item1.type.lower(): 
         if item1.name == item2.name:
             # Same QR code so give ourselves more room to work with.
-            # Can't just say they're the same because row/start end could have same name.
-            max_position_difference = max(max_position_difference, 30)
+            # TODO - normally want to take into account specified max position difference.  But
+            # if same code is planted in adjacent rows then definitely don't want those to be able to
+            # be the same code (and rows are 1 meter apart so don't want those to get confused).
+            max_position_difference = 50 # centimeters
         else:
             # Two codes with different names so can't be same item.
             return False
@@ -316,7 +326,7 @@ def apply_code_modifications(modifications, geo_images, all_codes, output_direct
                 continue
             ImageWriter.output_directory = output_directory
             try:
-                code = extract_items([code], geo_image, image, None)[0]
+                code = extract_items([code], geo_image, image, None, filter_edge_items=False)[0]
             except IndexError:
                 print "Failure during extraction for modification {}".format(modification)
                 continue
@@ -330,9 +340,10 @@ def apply_code_modifications(modifications, geo_images, all_codes, output_direct
             code.position = (modification.x, modification.y, modification.z)
             code.zone = modification.zone
             all_codes.append(code)
-            geo_image.items['codes'].append(code)
+            #geo_image.items['codes'].append(code)
             
             print "Successfully added code with ID {}".format(code.name)
+            
         elif type(modification).__name__ == 'DeleteCode':
  
             id_to_delete = modification.code_id
@@ -346,6 +357,37 @@ def apply_code_modifications(modifications, geo_images, all_codes, output_direct
                     num_refs_removed += 1
                 
             print "Removed {} references to code id {} from geo images".format(num_refs_removed, id_to_delete)
+                    
+        elif type(modification).__name__ == 'ChangeCodeName':
+            
+            # Change code name, but won't change code type (row vs group code)
+            # This will also update reference in images since not creating a new object.
+            num_refs_changed = 0
+            matching_codes = [code for code in all_codes if code.name == modification.original_code_id]
+            for code in matching_codes:
+                code.name = modification.new_code_id
+                num_refs_changed += 1
+                # TODO to this correctly, this is kind of hacky
+                if code.type.lower() == 'rowcode':
+                    code.row = int(modification.new_code_id[:-2])
+                    
+            print "Changed {} codes from {} to {}".format(num_refs_changed, modification.original_code_id, modification.new_code_id)
+                    
+        elif type(modification).__name__ == 'AddGapCode':
+            
+            # Set special flag that means any group starting with this code shouldn't have any plants
+            matching_codes = [code for code in all_codes if code.name == modification.code_id]
+            for code in matching_codes:
+                code.is_gap_item = True
+                
+            num_refs_changed = 0
+            for geo_image in geo_images:
+                matching_codes = [code for code in geo_image.items.get('codes',[]) if code.name == modification.code_id]
+                for code in matching_codes:
+                    code.is_gap_item = True
+                    num_refs_changed += 1
+                
+            print "Changed {} codes with ID {} to be gap codes with no plants.".format(num_refs_changed, modification.code_id)
                     
     return geo_images, all_codes
 

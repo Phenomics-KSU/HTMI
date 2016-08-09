@@ -74,9 +74,35 @@ def group_row_codes_by_pass_name(row_codes):
         
     return grouped_codes
 
+def group_row_codes_by_row_name(row_codes):
+    # Group row codes in list of (start code, end code) base on st or end in code name
+    
+    # First collect codes with the same row number.
+    grouped_row_codes = defaultdict(list)
+    for code in row_codes:
+        grouped_row_codes[code.row].append(code)
+    
+    grouped_row_codes_list = []
+    for row_num, row_codes in grouped_row_codes.iteritems():
+        
+        if len(row_codes) != 2:
+            print 'WARNING - skipping row {} because it has {} rows codes'.format(row_num, len(row_codes))
+            continue 
+    
+        try:
+            start_code = [code for code in row_codes if 'st' in code.name.lower()][0]
+            end_code = [code for code in row_codes if 'en' in code.name.lower()][0]
+        except IndexError:
+            print 'WARNING - skipping row {} because it has either 2 start or 2 end codes {}'.format(row_num, row_codes)
+            continue
+    
+        grouped_row_codes_list.append((start_code, end_code))
+
+    return grouped_row_codes_list
+
 def display_row_info(grouped_row_codes):
     # Show user information about which rows were found and which are missing.
-    sorted_row_numbers = sorted(grouped_row_codes.keys())
+    sorted_row_numbers = sorted([codes[0].row for codes in grouped_row_codes])
     smallest_row_number = sorted_row_numbers[0]
     biggest_row_number = sorted_row_numbers[-1]
     print "Found rows from {} to {}".format(smallest_row_number, biggest_row_number)
@@ -153,22 +179,6 @@ def associate_row_numbers_with_up_back_rows_using_code_names():
     
     return up_row_nums, back_row_nums
 
-def verify_up_back_row_numbers(up_row_nums, back_row_nums):
-
-    overlap = list(set(up_row_nums) & set(back_row_nums))
-    if len(overlap) > 0:
-        print "Bad row generation.  Overlapping between up and back: "
-        print overlap
-        sys.exit(1)
-    
-    if back_row_nums[-1] != 58:
-        print "Bad row generation.  Last row should be back and number 58"
-        sys.exit(1) 
-        
-    if 22 not in up_row_nums or 23 not in up_row_nums:
-        print "Bad row generation.  Back rows should have number 22"
-        sys.exit(1) 
-
 def assign_rows_a_direction(rows, up_row_nums, back_row_nums):
     for row in rows:
         if row.number in up_row_nums:
@@ -217,6 +227,57 @@ def create_rows_and_field_passes_by_pass_codes(grouped_row_codes, field_directio
         
         sorted_field_passes.append(rows_in_pass)
             
+    field_passes = sorted_field_passes
+    
+    return rows, field_passes
+
+def create_rows_and_field_passes_by_row_codes(grouped_row_codes, field_direction, rows_per_pass):
+    
+    rows = []
+    
+    for pass_start_code, pass_end_code in grouped_row_codes:
+        
+        field_start_code, field_end_code = orient_items(pass_start_code, pass_end_code, field_direction)
+    
+        if pass_start_code is field_start_code:
+            row_direction = 'up'
+        else:
+            row_direction = 'back'
+            
+        new_row = Row(field_start_code, field_end_code, direction=row_direction)
+        rows.append(new_row)
+        
+    # Sort row number so can group them into passes.
+    sorted_rows = sorted(rows, key=lambda row: row.number)
+            
+    # Current pass number to assign rows to.  Passes are indexed off 1.
+    current_pass_num = 1
+            
+    field_passes = defaultdict(list)
+    for row_idx, row in enumerate(sorted_rows):
+
+        if row_idx == 0:
+            current_direction = row.direction
+            
+        num_rows_in_current_pass = len(field_passes[current_pass_num])
+            
+        end_of_pass = (row.direction != current_direction) or (num_rows_in_current_pass >= rows_per_pass)
+            
+        if end_of_pass:
+            
+            if num_rows_in_current_pass < rows_per_pass:
+                print 'WARNING - pass {} only has {} rows'.format(current_pass_num, num_rows_in_current_pass)
+            
+            current_pass_num += 1
+
+        field_passes[current_pass_num].append(row)
+        current_direction = row.direction
+        
+    # Convert field passes to a list and make sure it's sorted.
+    sorted_field_passes = []
+    for sorted_pass_num in sorted(field_passes.keys()):
+        sorted_field_passes.append(field_passes[sorted_pass_num])
+
     field_passes = sorted_field_passes
     
     return rows, field_passes
@@ -334,18 +395,18 @@ def organize_group_segments(group_segments):
     
     return start_segments, middle_segments, end_segments, single_segments
 
-def complete_groups(end_segments, single_segments, field_passes):
+def complete_groups(end_segments, single_segments, field_passes, num_rows_per_pass):
     
     groups = []
     for end_segment in end_segments[:]: 
         
-        field_pass = [fpass for fpass in field_passes if end_segment.row_number in [row.number for row in fpass]]
+        matching_field_passes = [fpass for fpass in field_passes if end_segment.row_number in [row.number for row in fpass]]
         
-        if len(field_pass) == 0:
+        if len(matching_field_passes) == 0:
             print "End segment {} with row {} isn't in field pass list.".format(end_segment.start_code.name, end_segment.row_number)
             continue
         
-        field_pass = field_pass[0]
+        field_pass = matching_field_passes[0]
         pass_index = [row.number for row in field_pass].index(end_segment.row_number)
         
         field_pass_index = field_passes.index(field_pass)
@@ -357,16 +418,18 @@ def complete_groups(end_segments, single_segments, field_passes):
         
         next_pass = field_passes[field_pass_index+1]
         
-        if len(next_pass) < 2:
-            print "Pass {} doesn't contain 2 rows.  This should be the last pass.".format(field_pass_index+1)
-            continue
-        
-        next_pass_index = 0 # assume inside
-        if pass_index == 0:
-            next_pass_index = 1 # was actually outside
+        # Find row index in next pass matching this one.
+        # If 3 rows then a pass_index of 0 should have a corresponding index of 2 in the next row.
+        corresponding_row_index = num_rows_per_pass - pass_index - 1
             
-        this_planting_row = field_pass[pass_index]
-        next_planting_row = next_pass[next_pass_index]
+        try:
+            this_planting_row = field_pass[pass_index]
+            next_planting_row = next_pass[corresponding_row_index]
+        except IndexError:
+            single_segments.append(end_segment)
+            end_segments.remove(end_segment)
+            print "Segment at end of row {} in pass {} doesn't have corresponding row in next pass to match with.  Treating as single segment.".format(end_segment.row_number, field_pass_index+1)
+            continue
         
         if this_planting_row.direction == next_planting_row.direction:
             single_segments.append(end_segment)

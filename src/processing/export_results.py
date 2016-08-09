@@ -2,6 +2,7 @@
 
 import os
 import csv
+import utm
  
 def export_results(items, rows, out_filepath):
     '''Write all items to results file.'''
@@ -20,6 +21,8 @@ def export_results(items, rows, out_filepath):
                         'row_num',
                         'plant_field_num',
                         'plant_row_num',
+                        'latitude',
+                        'longitude',
                         'easting',
                         'northing',
                         'altitude',
@@ -70,6 +73,11 @@ def export_results(items, rows, out_filepath):
                 bound_width_pix, bound_height_pix = dim
                 bound_rotation = theta
                 
+            # Convert easting/northing back to lat/long
+            zone_letter = item.zone[-1]
+            zone_number = int(item.zone[:-1])
+            lat, long = utm.to_latlon(item.position[0], item.position[1], zone_number, zone_letter)
+                
             writer.writerow([
                            item.type,
                            item_id,
@@ -81,6 +89,8 @@ def export_results(items, rows, out_filepath):
                            item.number_within_row,
                            plant_num_in_field,
                            plant_num_in_row,
+                           '{:.10f}'.format(lat),
+                           '{:.10f}'.format(long),
                            '{:.3f}'.format(item.position[0]),
                            '{:.3f}'.format(item.position[1]),
                            '{:.3f}'.format(item.position[2]),

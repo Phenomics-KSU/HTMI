@@ -5,7 +5,7 @@ from collections import defaultdict
 class GeoImage(object):
     '''Image properties with X,Y,Z position and heading. All distances in centimeters.'''
     def __init__(self, file_name, image_time=0, position=(0,0,0), zone='N/A', field_position=(0,0,0),
-                 heading_degrees=0, resolution=0, camera_rotation_degrees=0, size=(0,0)):
+                 roll_degrees=0, pitch_degrees=0, heading_degrees=0, resolution=0, cam_height=0, size=(0,0)):
         '''Constructor.'''
         self.file_name = file_name # name of image file with extension (not full path).
         self.file_path = None # full file path of image stored for convenience. Might be none or invalid.
@@ -13,9 +13,11 @@ class GeoImage(object):
         self.position = position # 3D position of camera in either local ENU frame or UTM when the image was taken.
         self.zone = zone # UTM zone (e.g. 14S). Should be '--' if not being used.
         self.field_position = field_position # 3D position relative to first field item and y axis runs along ranges. axes are in direction of row, range, altitude.
+        self.roll_degrees = roll_degrees # roll of image about x-axis being forward.
+        self.pitch_degrees = pitch_degrees # pitch of image about y-axis being out of left side.
         self.heading_degrees = heading_degrees # heading of image with 0 degrees being East and increasing CCW.
         self.resolution = resolution # resolution (cm/pix) that user specified.
-        self.camera_rotation_degrees = camera_rotation_degrees # 0 degrees camera top forward. Increase CCW.
+        self.camera_height = cam_height # average height that camera is above ground in centimeters.
         self.width = size[0] # image width in pixels.
         self.height = size[1] # image height in pixels.
         

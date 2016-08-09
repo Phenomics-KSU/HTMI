@@ -113,11 +113,13 @@ def cluster_geo_image_items(geo_image, segment, max_plant_size, max_plant_part_d
     # compare rectangles between multiple images.
     leaves = [{'item_type':'leaf', 'rect':rect_to_global(rect, geo_image)} for rect in geo_image.items['leaves']]
     stick_parts = [{'item_type':'stick_part', 'rect':rect_to_global(rect, geo_image)} for rect in geo_image.items['stick_parts']]
+    tags = [{'item_type':'tag', 'rect':rect_to_global(rect, geo_image)} for rect in geo_image.items['tags']]
+    
     if segment.is_special:
         plant_parts = leaves # no blue sticks in single plants
         plant_parts = remove_plant_parts_close_to_code(plant_parts, segment.start_code, 0.04)
     else:
-        plant_parts = leaves + stick_parts
+        plant_parts = leaves + stick_parts + tags
     geo_image_possible_plants = cluster_rectangle_items(plant_parts, max_plant_part_distance, max_plant_size)
     
     for plant in geo_image_possible_plants:
